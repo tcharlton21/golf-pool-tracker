@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { EntrantLeaderboardRow } from "@/lib/schemas";
-import { formatMoney, formatPct } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { PicksExpandable } from "./PicksExpandable";
 
 interface EntrantRowProps {
@@ -61,15 +61,10 @@ export function EntrantRow({ rank, entrant, poolType, scenarioEarnings, sortBy =
             </td>
           </>
         )}
-        <td className="py-2.5 px-3 text-sm text-right tabular-nums">
-          <span className="text-primary/90">
-            {formatPct(entrant.odds_of_having_winner)}
-          </span>
-        </td>
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={isHypothetical ? 5 : 7} className="p-0">
+          <td colSpan={isHypothetical ? 4 : 6} className="p-0">
             <PicksExpandable picks={entrant.picks} poolType={poolType} />
           </td>
         </tr>
