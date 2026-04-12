@@ -32,6 +32,11 @@ KNOWN_ALIASES: dict[str, list[str]] = {
     "Hideki Matsuyama": ["H. Matsuyama"],
     "Rory McIlroy": ["Rory Mcilroy"],
     "Cameron Davis": ["Cam Davis"],
+    "Bryson DeChambeau": ["Bryson Dechambeau"],
+    "Matt Fitzpatrick": ["Matthew Fitzpatrick"],
+    "Nicolai Hojgaard": ["Nicolai Hojgaard", "Nicolai Højgaard"],
+    "J.J. Spaun": ["JJ Spaun"],
+    "Tyrrell Hatton": ["Tyrell Hatton"],
 }
 
 # Inverted: alias → canonical
