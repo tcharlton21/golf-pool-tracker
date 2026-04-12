@@ -21,23 +21,33 @@ interface PoolViewProps {
   events: EventListItem[];
 }
 
-/** Compute scenario earnings for every entrant given a hypothetical golfer order. */
+/**
+ * Compute scenario earnings for every entrant given a hypothetical order.
+ * order is an array of "slots" — each slot is a tie group of 1+ players.
+ * Multi-player slots split the pooled payouts evenly (just like real tie rules).
+ */
 function calcScenarioEarnings(
   entrants: EntrantLeaderboardRow[],
-  order: string[],
+  order: string[][],
   purseMap: Record<number, number>,
 ): Map<number, number> {
-  const positionOf: Record<string, number> = {};
-  order.forEach((name, i) => {
-    positionOf[name.toLowerCase()] = i + 1;
-  });
+  // Map each player name → their average payout in this scenario
+  const earningsOf: Record<string, number> = {};
+  let pos = 1;
+  for (const slot of order) {
+    const total = slot.reduce((sum, _, i) => sum + (purseMap[pos + i] ?? 0), 0);
+    const avg = slot.length > 0 ? total / slot.length : 0;
+    for (const name of slot) {
+      earningsOf[name.toLowerCase()] = avg;
+    }
+    pos += slot.length;
+  }
 
   const result = new Map<number, number>();
   for (const entrant of entrants) {
     let total = 0;
     for (const pick of entrant.picks) {
-      const pos = positionOf[pick.golfer_name.toLowerCase()];
-      if (pos) total += purseMap[pos] ?? 0;
+      total += earningsOf[pick.golfer_name.toLowerCase()] ?? 0;
     }
     result.set(entrant.entrant_id, total);
   }
@@ -54,9 +64,9 @@ export function PoolView({ poolType, events }: PoolViewProps) {
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Hypothetical mode
+  // Hypothetical mode — order is an array of tie-slots (1+ players per slot)
   const [hypotheticalMode, setHypotheticalMode] = useState(false);
-  const [hypotheticalOrder, setHypotheticalOrder] = useState<string[]>([]);
+  const [hypotheticalOrder, setHypotheticalOrder] = useState<string[][]>([]);
 
   const { leaderboard, isLoading, error, refresh } = usePoolData(selectedEventId, poolType);
   const { liveOdds } = useLiveOdds(selectedEventId);
@@ -85,16 +95,33 @@ export function PoolView({ poolType, events }: PoolViewProps) {
       setHypotheticalOrder([]);
       return;
     }
-    // Seed from current live positions
-    const sorted = (liveOdds?.players ?? [])
+    // Seed from current live positions, grouping tied players into the same slot
+    const players = liveOdds?.players ?? [];
+    const withPos = [...players]
       .filter((p) => p.current_pos != null)
       .sort((a, b) => (a.current_pos ?? 999) - (b.current_pos ?? 999));
-    const rest = (liveOdds?.players ?? []).filter((p) => p.current_pos == null);
-    setHypotheticalOrder([...sorted, ...rest].map((p) => p.normalized_name));
+    const noPos = players.filter((p) => p.current_pos == null);
+
+    // Group consecutive players at the same position into tie slots
+    const slots: string[][] = [];
+    for (const p of withPos) {
+      const last = slots[slots.length - 1];
+      const lastPos = withPos.find((x) => x.normalized_name === last?.[0])?.current_pos;
+      if (last && lastPos === p.current_pos) {
+        last.push(p.normalized_name);
+      } else {
+        slots.push([p.normalized_name]);
+      }
+    }
+    // Players with no position get their own slot at the end
+    for (const p of noPos) {
+      slots.push([p.normalized_name]);
+    }
+    setHypotheticalOrder(slots);
     setHypotheticalMode(true);
   }
 
-  const handleOrderChange = useCallback((order: string[]) => {
+  const handleOrderChange = useCallback((order: string[][]) => {
     setHypotheticalOrder(order);
   }, []);
 
@@ -203,9 +230,11 @@ export function PoolView({ poolType, events }: PoolViewProps) {
                         ? <span className="text-amber-400">Scenario $</span>
                         : "Proj. $"}
                     </th>
-                    <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-                      {hypotheticalMode ? "Proj. $" : "Live $"}
-                    </th>
+                    {!hypotheticalMode && (
+                      <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+                        Live $
+                      </th>
+                    )}
                     <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide">Odds to Win</th>
                   </tr>
                 </thead>

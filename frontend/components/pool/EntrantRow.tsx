@@ -51,12 +51,12 @@ export function EntrantRow({ rank, entrant, poolType, scenarioEarnings }: Entran
             ? formatMoney(scenarioEarnings)
             : formatMoney(entrant.projected_earnings)}
         </td>
-        {/* Secondary column — live $ normally, proj. $ in hypothetical (for reference) */}
-        <td className="py-2.5 px-3 text-sm text-right tabular-nums text-muted-foreground">
-          {isHypothetical
-            ? formatMoney(entrant.projected_earnings)
-            : formatMoney(entrant.current_earnings)}
-        </td>
+        {/* Secondary column — live $ in normal mode only */}
+        {!isHypothetical && (
+          <td className="py-2.5 px-3 text-sm text-right tabular-nums text-muted-foreground">
+            {formatMoney(entrant.current_earnings)}
+          </td>
+        )}
         <td className="py-2.5 px-3 text-sm text-right tabular-nums">
           <span className="text-primary/90">
             {formatPct(entrant.odds_of_having_winner)}
@@ -65,7 +65,7 @@ export function EntrantRow({ rank, entrant, poolType, scenarioEarnings }: Entran
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={6} className="p-0">
+          <td colSpan={isHypothetical ? 5 : 6} className="p-0">
             <PicksExpandable picks={entrant.picks} poolType={poolType} />
           </td>
         </tr>
