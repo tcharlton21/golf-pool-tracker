@@ -19,15 +19,15 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS: allow localhost for dev, plus any origins set via ALLOWED_ORIGINS env var
-# (set to your Vercel URL on Render, e.g. "https://golf-pool-tracker.vercel.app")
+# CORS: allow localhost for dev + explicit origins from ALLOWED_ORIGINS env var.
+# On Render, set ALLOWED_ORIGINS to your exact Vercel URL, e.g.:
+#   https://golf-pool-tracker.vercel.app
 _extra_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 _allowed_origins = ["http://localhost:3000", *_extra_origins]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
