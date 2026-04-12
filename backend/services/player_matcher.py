@@ -12,6 +12,7 @@ then DataGolf and DraftKings ingestion link to existing rows via fuzzy matching.
 
 import logging
 import re
+import unicodedata
 from datetime import datetime, timezone
 
 from rapidfuzz import fuzz, process
@@ -43,6 +44,21 @@ for canonical, aliases in KNOWN_ALIASES.items():
 FUZZY_THRESHOLD = 85
 
 
+def _strip_accents(text: str) -> str:
+    """'Åberg' → 'Aberg', 'Hojgaard' stays 'Hojgaard' (no accent to strip)."""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def _clean_name(text: str) -> str:
+    """Strip accents and parenthetical suffixes like '(A)' for amateur."""
+    text = _strip_accents(text)
+    text = re.sub(r"\s*\([^)]*\)\s*$", "", text).strip()
+    return text
+
+
 def normalize_excel_name(raw: str) -> str:
     """
     Convert Excel "Last, First" format to "First Last".
@@ -51,7 +67,7 @@ def normalize_excel_name(raw: str) -> str:
       "McIlroy, Rory"       →  "Rory McIlroy"
       "Scottie Scheffler"   →  "Scottie Scheffler"  (already normalized)
     """
-    raw = raw.strip()
+    raw = _clean_name(raw.strip())
     if "," in raw:
         parts = raw.split(",", 1)
         last = parts[0].strip()
@@ -92,7 +108,7 @@ def match_datagolf_name(dg_name: str, db: Session) -> PlayerCache | None:
     Tries exact match, alias lookup, then fuzzy match.
     Returns None if no match above threshold — caller should log warning.
     """
-    canonical = _apply_alias(dg_name)
+    canonical = _apply_alias(_clean_name(dg_name))
 
     # Exact match on normalized_name
     exact = db.query(PlayerCache).filter_by(normalized_name=canonical).first()
