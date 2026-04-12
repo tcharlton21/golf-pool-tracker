@@ -45,6 +45,7 @@ class PlayerProbDTO:
     top10_pct: float | None
     top20_pct: float | None
     current_pos: int | None
+    missed_cut: bool = False  # True when DataGolf position string is MC/WD/DQ/CUT
 
 
 def _strip_jsonp(text: str) -> str:
@@ -89,16 +90,22 @@ def _parse_score(val) -> int | None:
         return None
 
 
-def _parse_pos(val) -> int | None:
+_MISSED_CUT_STRINGS = {"MC", "CUT", "WD", "DQ"}
+
+
+def _parse_pos(val) -> tuple[int | None, bool]:
+    """Returns (position, missed_cut). missed_cut=True for MC/WD/DQ/CUT positions."""
     if val is None:
-        return None
-    s = str(val).strip().lstrip("T").lstrip("t")
-    if s in ("", "--", "CUT", "WD", "DQ", "MC"):
-        return None
+        return None, False
+    s = str(val).strip().upper().lstrip("T")
+    if s in _MISSED_CUT_STRINGS:
+        return None, True
+    if s in ("", "--"):
+        return None, False
     try:
-        return int(s)
+        return int(s), False
     except ValueError:
-        return None
+        return None, False
 
 
 def _parse_thru(val) -> str | None:
@@ -218,7 +225,7 @@ async def scrape_live_model() -> list[PlayerProbDTO]:
                 thru = "F" if thru_raw == 18 else (str(thru_raw) if thru_raw > 0 else "--")
             else:
                 thru = _parse_thru(thru_raw)
-            pos = _parse_pos(lb_row.get("p"))
+            pos, missed_cut = _parse_pos(lb_row.get("p"))
 
             display_name = _last_first_to_first_last(last_first)
             results.append(PlayerProbDTO(
@@ -230,6 +237,7 @@ async def scrape_live_model() -> list[PlayerProbDTO]:
                 top10_pct=top10_pct,
                 top20_pct=top20_pct,
                 current_pos=pos,
+                missed_cut=missed_cut,
             ))
 
         results.sort(key=lambda r: r.win_pct or 0, reverse=True)

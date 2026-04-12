@@ -103,6 +103,7 @@ class LiveOddsCache(Base):
     current_pos = Column(Integer)
     current_score = Column(Integer)                  # strokes to par (negative = under)
     thru = Column(String)                            # "F", "14", "-"
+    missed_cut = Column(Boolean, default=False)      # True when DataGolf reports MC/WD/DQ
     fetched_at = Column(String, nullable=False)
 
     event = relationship("Event", back_populates="live_odds")

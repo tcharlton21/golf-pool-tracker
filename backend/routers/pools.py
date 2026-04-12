@@ -216,7 +216,7 @@ def get_leaderboard(
     win_probs: dict[str, float] = {}
     for name in all_golfer_names:
         odds = odds_map.get(name)
-        if odds and odds.win_pct is not None:
+        if odds and not odds.missed_cut:
             probs = make_position_probs(odds.win_pct, odds.top5_pct, odds.top10_pct, odds.top20_pct)
             position_probs[name] = probs
             win_probs[name] = odds.win_pct or 0.0

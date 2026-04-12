@@ -188,6 +188,7 @@ async def _do_refresh(
                 existing.current_pos = dg_player.current_pos
                 existing.current_score = dg_player.current_score
                 existing.thru = dg_player.thru
+                existing.missed_cut = dg_player.missed_cut
                 existing.dk_win_odds = dk_odds
                 existing.fetched_at = fetched_at
             else:
@@ -201,6 +202,7 @@ async def _do_refresh(
                     current_pos=dg_player.current_pos,
                     current_score=dg_player.current_score,
                     thru=dg_player.thru,
+                    missed_cut=dg_player.missed_cut,
                     dk_win_odds=dk_odds,
                     fetched_at=fetched_at,
                 ))
