@@ -98,6 +98,12 @@ export const UploadPreviewResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 
+export const PursePositionSchema = z.object({
+  position: z.number(),
+  pct: z.number(),
+  amount_usd: z.number(),
+});
+
 // Inferred types
 export type PickDetail = z.infer<typeof PickDetailSchema>;
 export type EntrantLeaderboardRow = z.infer<typeof EntrantLeaderboardRowSchema>;
@@ -107,3 +113,4 @@ export type LiveOddsResponse = z.infer<typeof LiveOddsResponseSchema>;
 export type EventListItem = z.infer<typeof EventListItemSchema>;
 export type RefreshSummary = z.infer<typeof RefreshSummarySchema>;
 export type UploadPreviewResponse = z.infer<typeof UploadPreviewResponseSchema>;
+export type PursePosition = z.infer<typeof PursePositionSchema>;

@@ -3,20 +3,19 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { EntrantLeaderboardRow } from "@/lib/schemas";
-import {
-  formatMoney,
-  formatPct,
-} from "@/lib/format";
+import { formatMoney, formatPct } from "@/lib/format";
 import { PicksExpandable } from "./PicksExpandable";
 
 interface EntrantRowProps {
   rank: number;
   entrant: EntrantLeaderboardRow;
   poolType: string;
+  scenarioEarnings?: number; // set in hypothetical mode — replaces projected $
 }
 
-export function EntrantRow({ rank, entrant, poolType }: EntrantRowProps) {
+export function EntrantRow({ rank, entrant, poolType, scenarioEarnings }: EntrantRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const isHypothetical = scenarioEarnings !== undefined;
 
   const rankColor =
     rank === 1
@@ -33,7 +32,6 @@ export function EntrantRow({ rank, entrant, poolType }: EntrantRowProps) {
         className="border-b border-border/30 hover:bg-secondary/40 cursor-pointer transition-colors group"
         onClick={() => setIsExpanded((v) => !v)}
       >
-        {/* Expand indicator */}
         <td className="py-2.5 px-2 w-6">
           <span className="text-muted-foreground/50 group-hover:text-muted-foreground transition-colors">
             {isExpanded ? (
@@ -43,27 +41,27 @@ export function EntrantRow({ rank, entrant, poolType }: EntrantRowProps) {
             )}
           </span>
         </td>
-        {/* Rank */}
         <td className={`py-2.5 px-2 text-sm font-semibold tabular-nums ${rankColor}`}>
           {rank}
         </td>
-        {/* Name */}
         <td className="py-2.5 px-3 text-sm font-medium">{entrant.name}</td>
-        {/* Projected earnings */}
-        <td className="py-2.5 px-3 text-sm text-right font-medium tabular-nums">
-          {formatMoney(entrant.projected_earnings)}
+        {/* Primary earnings column — scenario $ in hypothetical mode, proj. $ normally */}
+        <td className={`py-2.5 px-3 text-sm text-right font-medium tabular-nums ${isHypothetical ? "text-amber-400" : ""}`}>
+          {isHypothetical
+            ? formatMoney(scenarioEarnings)
+            : formatMoney(entrant.projected_earnings)}
         </td>
-        {/* Current earnings */}
+        {/* Secondary column — live $ normally, proj. $ in hypothetical (for reference) */}
         <td className="py-2.5 px-3 text-sm text-right tabular-nums text-muted-foreground">
-          {formatMoney(entrant.current_earnings)}
+          {isHypothetical
+            ? formatMoney(entrant.projected_earnings)
+            : formatMoney(entrant.current_earnings)}
         </td>
-        {/* Odds of winner */}
         <td className="py-2.5 px-3 text-sm text-right tabular-nums">
           <span className="text-primary/90">
             {formatPct(entrant.odds_of_having_winner)}
           </span>
         </td>
-        {/* Edge score */}
         <td className="py-2.5 px-3 text-sm text-right tabular-nums text-muted-foreground">
           {entrant.exclusive_edge_score > 0
             ? entrant.exclusive_edge_score.toFixed(4)

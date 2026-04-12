@@ -3,11 +3,13 @@ import {
   EventListItemSchema,
   LeaderboardResponseSchema,
   LiveOddsResponseSchema,
+  PursePositionSchema,
   RefreshSummarySchema,
   UploadPreviewResponseSchema,
   type EventListItem,
   type LeaderboardResponse,
   type LiveOddsResponse,
+  type PursePosition,
   type RefreshSummary,
   type UploadPreviewResponse,
 } from "./schemas";
@@ -92,6 +94,10 @@ export async function uploadPicks(
     throw new Error(`Invalid upload response: ${parsed.error.message}`);
   }
   return parsed.data;
+}
+
+export function fetchPurse(eventId: number): Promise<PursePosition[]> {
+  return apiFetch(`/events/${eventId}/purse`, z.array(PursePositionSchema));
 }
 
 export async function confirmUpload(
