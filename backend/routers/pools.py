@@ -211,12 +211,20 @@ def get_leaderboard(
             total = sum(position_amounts.get(pos + i, 0.0) for i in range(count))
             tie_position_amounts[pos] = total / count
 
+    # The MC payout position — positions 55-100 all pay the same missed-cut amount.
+    # Using 65 as a representative; position_amounts[65] = MC payout (e.g. $25,000).
+    _MC_POS = 65
+
     # Build position_probs for each player
     position_probs: dict[str, dict[int, float]] = {}
     win_probs: dict[str, float] = {}
     for name in all_golfer_names:
         odds = odds_map.get(name)
-        if odds and not odds.missed_cut:
+        if odds and odds.missed_cut:
+            # Missed cut: certain to earn the MC payout, nothing else
+            position_probs[name] = {_MC_POS: 1.0}
+            win_probs[name] = 0.0
+        elif odds:
             probs = make_position_probs(odds.win_pct, odds.top5_pct, odds.top10_pct, odds.top20_pct)
             position_probs[name] = probs
             win_probs[name] = odds.win_pct or 0.0
@@ -245,11 +253,14 @@ def get_leaderboard(
         edge = calculator.exclusive_edge_score(picks_list, win_probs, all_pick_lists)
 
         # Current earnings (non-probability-weighted, just live pos, tie-split)
+        def _live_pos(golfer: str) -> int | None:
+            o = odds_map.get(golfer)
+            if o and o.missed_cut:
+                return _MC_POS
+            return o.current_pos if o else None
+
         curr_earn = sum(
-            calculator.current_earnings_from_position(
-                odds_map[p.golfer_name].current_pos if p.golfer_name in odds_map else None,
-                tie_position_amounts,
-            )
+            calculator.current_earnings_from_position(_live_pos(p.golfer_name), tie_position_amounts)
             for p in entrant.picks
         )
 
@@ -259,7 +270,7 @@ def get_leaderboard(
             pick_probs = position_probs.get(pick.golfer_name, {})
             pick_proj = calculator.projected_earnings([pick.golfer_name], {pick.golfer_name: pick_probs}, position_amounts)
             pick_curr = calculator.current_earnings_from_position(
-                odds.current_pos if odds else None,
+                _MC_POS if (odds and odds.missed_cut) else (odds.current_pos if odds else None),
                 tie_position_amounts,
             )
             coverage = (golfer_entrant_count[pick.golfer_name] - 1) / max(1, total_entrants - 1)
