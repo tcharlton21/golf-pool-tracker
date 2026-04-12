@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { RefreshCw, Clock, FlaskConical, Info, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -306,7 +306,7 @@ export function PoolView({ poolType, events }: PoolViewProps) {
             {poolLeaderboard}
           </div>
           {/* Mobile hint */}
-          <div className="flex-1 md:flex-none md:w-72 md:shrink-0 flex flex-col gap-2">
+          <div className="flex-1 md:flex-none md:w-[30%] md:shrink-0 flex flex-col gap-2">
             <div className="md:hidden text-xs text-amber-400/80 font-medium">
               Drag to reorder · scenario updates live
             </div>
@@ -322,7 +322,7 @@ export function PoolView({ poolType, events }: PoolViewProps) {
             {poolLeaderboard}
           </div>
           {selectedEventId && (
-            <div className={`md:w-72 md:shrink-0 ${mobileTab === "pool" ? "hidden md:block" : "flex-1"}`}>
+            <div className={`md:w-[30%] md:shrink-0 ${mobileTab === "pool" ? "hidden md:block" : "flex-1"}`}>
               {sidebarContent}
             </div>
           )}
@@ -341,9 +341,26 @@ interface SortableColHeaderProps {
 }
 
 function SortableColHeader({ label, active, onClick, tooltip, muted }: SortableColHeaderProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click/tap
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent | TouchEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    document.addEventListener("touchstart", handle);
+    return () => {
+      document.removeEventListener("mousedown", handle);
+      document.removeEventListener("touchstart", handle);
+    };
+  }, [open]);
+
   return (
-    <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide">
-      <div className="inline-flex items-center justify-end gap-1 group/col">
+    <th className="py-2 px-2 text-right text-xs font-semibold uppercase tracking-wide">
+      <div ref={ref} className="inline-flex items-center justify-end gap-1">
         <button
           onClick={onClick}
           className={`flex items-center gap-0.5 hover:text-foreground transition-colors ${
@@ -354,10 +371,17 @@ function SortableColHeader({ label, active, onClick, tooltip, muted }: SortableC
           <ChevronDown className={`w-3 h-3 transition-opacity ${active ? "opacity-100" : "opacity-0"}`} />
         </button>
         <div className="relative">
-          <Info className="w-3 h-3 text-muted-foreground/40 hover:text-muted-foreground/80 cursor-help" />
-          <div className="absolute top-full right-0 mt-2 w-56 p-2 rounded bg-popover border border-border/60 text-xs text-muted-foreground font-normal normal-case tracking-normal text-left shadow-lg opacity-0 pointer-events-none group-hover/col:opacity-100 transition-opacity z-[100] leading-relaxed">
-            {tooltip}
-          </div>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className={`transition-colors ${open ? "text-muted-foreground/80" : "text-muted-foreground/40 hover:text-muted-foreground/80"}`}
+          >
+            <Info className="w-3 h-3" />
+          </button>
+          {open && (
+            <div className="absolute top-full right-0 mt-2 w-56 p-2 rounded bg-popover border border-border/60 text-xs text-muted-foreground font-normal normal-case tracking-normal text-left shadow-lg z-[100] leading-relaxed">
+              {tooltip}
+            </div>
+          )}
         </div>
       </div>
     </th>

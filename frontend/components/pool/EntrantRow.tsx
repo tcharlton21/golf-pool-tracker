@@ -53,10 +53,10 @@ export function EntrantRow({ rank, entrant, poolType, scenarioEarnings, sortBy =
           </td>
         ) : (
           <>
-            <td className={`py-2.5 px-3 text-sm text-right tabular-nums ${sortBy === "live" ? "font-medium text-foreground" : "text-muted-foreground"}`}>
+            <td className={`py-2.5 px-2 text-sm text-right tabular-nums ${sortBy === "live" ? "font-medium text-foreground" : "text-muted-foreground"}`}>
               {formatMoney(entrant.current_earnings)}
             </td>
-            <td className={`py-2.5 px-3 text-sm text-right tabular-nums ${sortBy === "projected" ? "font-medium text-foreground" : "text-muted-foreground"}`}>
+            <td className={`py-2.5 px-2 text-sm text-right tabular-nums ${sortBy === "projected" ? "font-medium text-foreground" : "text-muted-foreground"}`}>
               {formatMoney(entrant.projected_earnings)}
             </td>
           </>

@@ -16,36 +16,32 @@ interface PicksExpandableProps {
 
 export function PicksExpandable({ picks, poolType }: PicksExpandableProps) {
   const isPiper = poolType === "piper";
-
-  // For Piper, group pairs together (A-1/A-2, B-1/B-2, etc.)
   const sortedPicks = [...picks].sort((a, b) => a.pick_order - b.pick_order);
 
   return (
-    <div className="mt-1 mb-2 mx-2 rounded border border-border/40 bg-secondary/30 overflow-hidden">
-      <table className="w-full text-xs">
+    <div className="mt-1 mb-2 mx-2 rounded border border-border/40 bg-secondary/30 overflow-x-auto">
+      <table className="text-xs min-w-full">
         <thead>
           <tr className="text-muted-foreground border-b border-border/40">
             {isPiper && (
-              <th className="py-1.5 px-3 text-left font-medium w-12">Grp</th>
+              <th className="py-1.5 px-3 text-left font-medium whitespace-nowrap">Group</th>
             )}
-            <th className="py-1.5 px-3 text-left font-medium">Player</th>
-            <th className="py-1.5 px-2 text-center font-medium w-10">Pos</th>
-            <th className="py-1.5 px-2 text-center font-medium w-10">Score</th>
-            <th className="py-1.5 px-2 text-center font-medium w-10">Thru</th>
-            <th className="py-1.5 px-2 text-right font-medium w-14">Win%</th>
-            <th className="py-1.5 px-2 text-right font-medium w-14">Top 5%</th>
-            <th className="py-1.5 px-2 text-right font-medium w-20">Proj.$</th>
-            <th className="py-1.5 px-3 text-right font-medium w-16">Coverage</th>
+            <th className="py-1.5 px-3 text-left font-medium whitespace-nowrap">Player</th>
+            <th className="py-1.5 px-2 text-center font-medium w-10 whitespace-nowrap">Pos</th>
+            <th className="py-1.5 px-2 text-center font-medium w-10 whitespace-nowrap">Score</th>
+            <th className="py-1.5 px-2 text-center font-medium w-10 whitespace-nowrap">Thru</th>
+            <th className="py-1.5 px-2 text-right font-medium whitespace-nowrap">Cur $</th>
+            <th className="py-1.5 px-2 text-right font-medium whitespace-nowrap">Proj $</th>
+            <th className="py-1.5 px-2 text-right font-medium whitespace-nowrap">Win%</th>
+            <th className="py-1.5 px-2 text-right font-medium whitespace-nowrap">Top 5%</th>
+            <th className="py-1.5 px-3 text-right font-medium whitespace-nowrap">Coverage</th>
           </tr>
         </thead>
         <tbody>
-          {sortedPicks.map((pick, idx) => {
-            const isMissedCut =
-              pick.current_pos && pick.current_pos > 70;
-            const isTopTen =
-              pick.current_pos != null && pick.current_pos <= 10;
-            const isTopFive =
-              pick.current_pos != null && pick.current_pos <= 5;
+          {sortedPicks.map((pick) => {
+            const isMissedCut = pick.current_pos && pick.current_pos > 70;
+            const isTopTen = pick.current_pos != null && pick.current_pos <= 10;
+            const isTopFive = pick.current_pos != null && pick.current_pos <= 5;
 
             return (
               <tr
@@ -55,11 +51,11 @@ export function PicksExpandable({ picks, poolType }: PicksExpandableProps) {
                 }`}
               >
                 {isPiper && (
-                  <td className="py-1.5 px-3 text-muted-foreground font-mono">
+                  <td className="py-1.5 px-3 text-muted-foreground font-mono whitespace-nowrap">
                     {pick.group_label ?? "—"}
                   </td>
                 )}
-                <td className="py-1.5 px-3">
+                <td className="py-1.5 px-3 whitespace-nowrap">
                   <span
                     className={
                       isTopFive
@@ -72,33 +68,32 @@ export function PicksExpandable({ picks, poolType }: PicksExpandableProps) {
                     {pick.golfer_name}
                   </span>
                 </td>
-                <td className="py-1.5 px-2 text-center text-muted-foreground">
+                <td className="py-1.5 px-2 text-center text-muted-foreground whitespace-nowrap">
                   {formatPos(pick.current_pos)}
                 </td>
-                <td
-                  className={`py-1.5 px-2 text-center font-medium ${scoreColorClass(pick.current_score)}`}
-                >
+                <td className={`py-1.5 px-2 text-center font-medium whitespace-nowrap ${scoreColorClass(pick.current_score)}`}>
                   {formatScore(pick.current_score)}
                 </td>
-                <td className="py-1.5 px-2 text-center text-muted-foreground">
+                <td className="py-1.5 px-2 text-center text-muted-foreground whitespace-nowrap">
                   {pick.thru ?? "—"}
                 </td>
-                <td className="py-1.5 px-2 text-right">
+                <td className="py-1.5 px-2 text-right text-foreground/80 whitespace-nowrap">
+                  {formatMoney(pick.current_earnings_contribution)}
+                </td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground whitespace-nowrap">
+                  {formatMoney(pick.projected_earnings_contribution)}
+                </td>
+                <td className="py-1.5 px-2 text-right whitespace-nowrap">
                   {pick.win_pct != null ? (
-                    <span className="text-primary font-medium">
-                      {formatPct(pick.win_pct)}
-                    </span>
+                    <span className="text-primary font-medium">{formatPct(pick.win_pct)}</span>
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
                 </td>
-                <td className="py-1.5 px-2 text-right text-muted-foreground">
+                <td className="py-1.5 px-2 text-right text-muted-foreground whitespace-nowrap">
                   {formatPct(pick.top5_pct)}
                 </td>
-                <td className="py-1.5 px-2 text-right text-foreground/80">
-                  {formatMoney(pick.projected_earnings_contribution)}
-                </td>
-                <td className="py-1.5 px-3 text-right">
+                <td className="py-1.5 px-3 text-right whitespace-nowrap">
                   <CoveragePip coverage={pick.coverage_pct} />
                 </td>
               </tr>
