@@ -97,9 +97,9 @@ def upsert_player(normalized_name: str, db: Session) -> PlayerCache:
 
 
 def _all_normalized_names(db: Session) -> list[tuple[int, str]]:
-    """Return (id, normalized_name) for all PlayerCache rows."""
+    """Return (id, cleaned_normalized_name) for all PlayerCache rows."""
     rows = db.query(PlayerCache.id, PlayerCache.normalized_name).all()
-    return [(r.id, r.normalized_name) for r in rows]
+    return [(r.id, _clean_name(r.normalized_name)) for r in rows]
 
 
 def match_datagolf_name(dg_name: str, db: Session) -> PlayerCache | None:
