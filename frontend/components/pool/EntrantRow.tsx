@@ -62,15 +62,10 @@ export function EntrantRow({ rank, entrant, poolType, scenarioEarnings }: Entran
             {formatPct(entrant.odds_of_having_winner)}
           </span>
         </td>
-        <td className="py-2.5 px-3 text-sm text-right tabular-nums text-muted-foreground">
-          {entrant.exclusive_edge_score > 0
-            ? entrant.exclusive_edge_score.toFixed(4)
-            : "—"}
-        </td>
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={7} className="p-0">
+          <td colSpan={6} className="p-0">
             <PicksExpandable picks={entrant.picks} poolType={poolType} />
           </td>
         </tr>

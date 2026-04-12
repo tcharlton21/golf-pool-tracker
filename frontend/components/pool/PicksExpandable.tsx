@@ -2,7 +2,6 @@
 
 import type { PickDetail } from "@/lib/schemas";
 import {
-  formatAmericanOdds,
   formatMoney,
   formatPct,
   formatPos,
@@ -34,9 +33,8 @@ export function PicksExpandable({ picks, poolType }: PicksExpandableProps) {
             <th className="py-1.5 px-2 text-center font-medium w-10">Score</th>
             <th className="py-1.5 px-2 text-center font-medium w-10">Thru</th>
             <th className="py-1.5 px-2 text-right font-medium w-14">Win%</th>
-            <th className="py-1.5 px-2 text-right font-medium w-14">Top5%</th>
+            <th className="py-1.5 px-2 text-right font-medium w-14">Top 5%</th>
             <th className="py-1.5 px-2 text-right font-medium w-20">Proj.$</th>
-            <th className="py-1.5 px-2 text-right font-medium w-16">DK Odds</th>
             <th className="py-1.5 px-3 text-right font-medium w-16">Coverage</th>
           </tr>
         </thead>
@@ -99,9 +97,6 @@ export function PicksExpandable({ picks, poolType }: PicksExpandableProps) {
                 </td>
                 <td className="py-1.5 px-2 text-right text-foreground/80">
                   {formatMoney(pick.projected_earnings_contribution)}
-                </td>
-                <td className="py-1.5 px-2 text-right text-muted-foreground font-mono text-xs">
-                  {formatAmericanOdds(pick.dk_win_odds)}
                 </td>
                 <td className="py-1.5 px-3 text-right">
                   <CoveragePip coverage={pick.coverage_pct} />

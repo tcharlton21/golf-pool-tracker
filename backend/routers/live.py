@@ -2,7 +2,9 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from models.database import Event, LiveOddsCache, PlayerCache, get_db, SessionLocal
@@ -13,6 +15,7 @@ from services.calculator import american_to_prob
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/live", tags=["live"])
+limiter = Limiter(key_func=get_remote_address)
 
 # Track running background refresh tasks per event
 _refresh_tasks: dict[int, asyncio.Task] = {}
@@ -54,9 +57,11 @@ def get_live_odds(event_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{event_id}/refresh", response_model=RefreshSummary)
-async def refresh_live_odds(event_id: int, db: Session = Depends(get_db)):
+@limiter.limit("2/minute")
+async def refresh_live_odds(request: Request, event_id: int, db: Session = Depends(get_db)):
     """
     Trigger a manual live odds refresh. Scrapes DataGolf and DraftKings.
+    Rate limited to 2 requests per minute per IP.
     """
     event = db.get(Event, event_id)
     if not event:

@@ -4,6 +4,9 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from models.database import SessionLocal, init_db
 from routers import events, live, pools
@@ -13,11 +16,15 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title="Golf Pool Tracker",
     description="Live tracking for Marshalek and Piper golf major pools",
     version="1.0.0",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS: allow localhost for dev + explicit origins from ALLOWED_ORIGINS env var.
 # On Render, set ALLOWED_ORIGINS to your exact Vercel URL, e.g.:

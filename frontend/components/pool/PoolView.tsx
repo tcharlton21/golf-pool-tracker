@@ -206,8 +206,7 @@ export function PoolView({ poolType, events }: PoolViewProps) {
                     <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
                       {hypotheticalMode ? "Proj. $" : "Live $"}
                     </th>
-                    <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide">Win Odds</th>
-                    <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide">Edge</th>
+                    <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide">Odds to Win</th>
                   </tr>
                 </thead>
                 <tbody>

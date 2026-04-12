@@ -1,6 +1,6 @@
 import secrets
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -192,6 +192,25 @@ def get_leaderboard(
             if last_refreshed is None or (odds.fetched_at and odds.fetched_at > last_refreshed):
                 last_refreshed = odds.fetched_at
 
+    # Build tie-aware current position amounts.
+    # When N players share position P, each earns avg(purse[P..P+N-1]).
+    # Query ALL live positions for this event (not just picks) to get true tie counts.
+    all_event_positions: list[int] = [
+        row.current_pos
+        for row in db.query(LiveOddsCache.current_pos)
+        .filter(LiveOddsCache.event_id == event_id)
+        .all()
+        if row.current_pos is not None
+    ]
+    pos_tie_counts = Counter(all_event_positions)
+    tie_position_amounts: dict[int, float] = {}
+    for pos, count in pos_tie_counts.items():
+        if count <= 1:
+            tie_position_amounts[pos] = position_amounts.get(pos, 0.0)
+        else:
+            total = sum(position_amounts.get(pos + i, 0.0) for i in range(count))
+            tie_position_amounts[pos] = total / count
+
     # Build position_probs for each player
     position_probs: dict[str, dict[int, float]] = {}
     win_probs: dict[str, float] = {}
@@ -225,11 +244,11 @@ def get_leaderboard(
         winner_odds = calculator.prob_of_having_winner([win_probs[g] for g in picks_list])
         edge = calculator.exclusive_edge_score(picks_list, win_probs, all_pick_lists)
 
-        # Current earnings (non-probability-weighted, just live pos)
+        # Current earnings (non-probability-weighted, just live pos, tie-split)
         curr_earn = sum(
             calculator.current_earnings_from_position(
                 odds_map[p.golfer_name].current_pos if p.golfer_name in odds_map else None,
-                position_amounts,
+                tie_position_amounts,
             )
             for p in entrant.picks
         )
@@ -241,7 +260,7 @@ def get_leaderboard(
             pick_proj = calculator.projected_earnings([pick.golfer_name], {pick.golfer_name: pick_probs}, position_amounts)
             pick_curr = calculator.current_earnings_from_position(
                 odds.current_pos if odds else None,
-                position_amounts,
+                tie_position_amounts,
             )
             coverage = (golfer_entrant_count[pick.golfer_name] - 1) / max(1, total_entrants - 1)
 
