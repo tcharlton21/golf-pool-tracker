@@ -11,9 +11,10 @@ interface EntrantRowProps {
   entrant: EntrantLeaderboardRow;
   poolType: string;
   scenarioEarnings?: number; // set in hypothetical mode — replaces projected $
+  sortBy?: "live" | "projected";
 }
 
-export function EntrantRow({ rank, entrant, poolType, scenarioEarnings }: EntrantRowProps) {
+export function EntrantRow({ rank, entrant, poolType, scenarioEarnings, sortBy = "live" }: EntrantRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isHypothetical = scenarioEarnings !== undefined;
 
@@ -45,17 +46,20 @@ export function EntrantRow({ rank, entrant, poolType, scenarioEarnings }: Entran
           {rank}
         </td>
         <td className="py-2.5 px-3 text-sm font-medium">{entrant.name}</td>
-        {/* Primary earnings column — scenario $ in hypothetical mode, proj. $ normally */}
-        <td className={`py-2.5 px-3 text-sm text-right font-medium tabular-nums ${isHypothetical ? "text-amber-400" : ""}`}>
-          {isHypothetical
-            ? formatMoney(scenarioEarnings)
-            : formatMoney(entrant.projected_earnings)}
-        </td>
-        {/* Secondary column — live $ in normal mode only */}
-        {!isHypothetical && (
-          <td className="py-2.5 px-3 text-sm text-right tabular-nums text-muted-foreground">
-            {formatMoney(entrant.current_earnings)}
+        {/* Earnings columns — hypothetical shows only scenario $; normal shows Live $ then Proj. $ */}
+        {isHypothetical ? (
+          <td className="py-2.5 px-3 text-sm text-right font-medium tabular-nums text-amber-400">
+            {formatMoney(scenarioEarnings)}
           </td>
+        ) : (
+          <>
+            <td className={`py-2.5 px-3 text-sm text-right tabular-nums ${sortBy === "live" ? "font-medium text-foreground" : "text-muted-foreground"}`}>
+              {formatMoney(entrant.current_earnings)}
+            </td>
+            <td className={`py-2.5 px-3 text-sm text-right tabular-nums ${sortBy === "projected" ? "font-medium text-foreground" : "text-muted-foreground"}`}>
+              {formatMoney(entrant.projected_earnings)}
+            </td>
+          </>
         )}
         <td className="py-2.5 px-3 text-sm text-right tabular-nums">
           <span className="text-primary/90">
@@ -65,7 +69,7 @@ export function EntrantRow({ rank, entrant, poolType, scenarioEarnings }: Entran
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={isHypothetical ? 5 : 6} className="p-0">
+          <td colSpan={isHypothetical ? 5 : 7} className="p-0">
             <PicksExpandable picks={entrant.picks} poolType={poolType} />
           </td>
         </tr>

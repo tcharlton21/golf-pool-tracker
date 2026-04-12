@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { RefreshCw, Clock, FlaskConical } from "lucide-react";
+import { RefreshCw, Clock, FlaskConical, Info, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -68,6 +68,9 @@ export function PoolView({ poolType, events }: PoolViewProps) {
   const [hypotheticalMode, setHypotheticalMode] = useState(false);
   const [hypotheticalOrder, setHypotheticalOrder] = useState<string[][]>([]);
 
+  // Sort column: "live" (current tie-split earnings) or "projected" (probability-weighted)
+  const [sortBy, setSortBy] = useState<"live" | "projected">("live");
+
   const { leaderboard, isLoading, error, refresh } = usePoolData(selectedEventId, poolType);
   const { liveOdds } = useLiveOdds(selectedEventId);
   const { purse } = usePurse(selectedEventId);
@@ -85,6 +88,7 @@ export function PoolView({ poolType, events }: PoolViewProps) {
         if (scenarioMap) {
           return (scenarioMap.get(b.entrant_id) ?? 0) - (scenarioMap.get(a.entrant_id) ?? 0);
         }
+        if (sortBy === "live") return b.current_earnings - a.current_earnings;
         return b.projected_earnings - a.projected_earnings;
       })
     : [];
@@ -225,15 +229,26 @@ export function PoolView({ poolType, events }: PoolViewProps) {
                     <th className="py-2 px-2 w-6" />
                     <th className="py-2 px-2 text-left text-xs font-semibold uppercase tracking-wide w-8">#</th>
                     <th className="py-2 px-3 text-left text-xs font-semibold uppercase tracking-wide">Entrant</th>
-                    <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide">
-                      {hypotheticalMode
-                        ? <span className="text-amber-400">Scenario $</span>
-                        : "Proj. $"}
-                    </th>
-                    {!hypotheticalMode && (
-                      <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-                        Live $
+                    {hypotheticalMode ? (
+                      <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide">
+                        <span className="text-amber-400">Scenario $</span>
                       </th>
+                    ) : (
+                      <>
+                        <SortableColHeader
+                          label="Live $"
+                          active={sortBy === "live"}
+                          onClick={() => setSortBy("live")}
+                          tooltip="What each entrant would earn if the tournament ended right now. Ties split the pooled payouts evenly."
+                        />
+                        <SortableColHeader
+                          label="Proj. $"
+                          active={sortBy === "projected"}
+                          onClick={() => setSortBy("projected")}
+                          tooltip="Probability-weighted expected earnings based on DataGolf's win%, top-5%, top-10%, and top-20% projections."
+                          muted
+                        />
+                      </>
                     )}
                     <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide">Odds to Win</th>
                   </tr>
@@ -246,6 +261,7 @@ export function PoolView({ poolType, events }: PoolViewProps) {
                       entrant={entrant}
                       poolType={poolType}
                       scenarioEarnings={scenarioMap?.get(entrant.entrant_id)}
+                      sortBy={sortBy}
                     />
                   ))}
                 </tbody>
@@ -277,6 +293,40 @@ export function PoolView({ poolType, events }: PoolViewProps) {
         </div>
       )}
     </div>
+  );
+}
+
+interface SortableColHeaderProps {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  tooltip: string;
+  muted?: boolean;
+}
+
+function SortableColHeader({ label, active, onClick, tooltip, muted }: SortableColHeaderProps) {
+  return (
+    <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide">
+      <div className="inline-flex items-center justify-end gap-1 group/col relative">
+        {/* Info tooltip */}
+        <div className="relative">
+          <Info className="w-3 h-3 text-muted-foreground/40 hover:text-muted-foreground/80 cursor-help" />
+          <div className="absolute bottom-full right-0 mb-1.5 w-56 p-2 rounded bg-popover border border-border/60 text-xs text-muted-foreground font-normal normal-case tracking-normal text-left shadow-lg opacity-0 pointer-events-none group-hover/col:opacity-100 transition-opacity z-50 leading-relaxed">
+            {tooltip}
+          </div>
+        </div>
+        {/* Clickable sort label */}
+        <button
+          onClick={onClick}
+          className={`flex items-center gap-0.5 hover:text-foreground transition-colors ${
+            active ? "text-foreground" : muted ? "text-muted-foreground/60" : "text-muted-foreground"
+          }`}
+        >
+          {label}
+          <ChevronDown className={`w-3 h-3 transition-opacity ${active ? "opacity-100" : "opacity-0"}`} />
+        </button>
+      </div>
+    </th>
   );
 }
 
