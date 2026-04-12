@@ -1,0 +1,7 @@
+.env
+venv/
+__pycache__/
+*.pyc
+# golf.db intentionally committed as pre-seeded database
+# *.db
+.pytest_cache/
