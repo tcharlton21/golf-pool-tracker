@@ -253,26 +253,30 @@ def get_leaderboard(
         edge = calculator.exclusive_edge_score(picks_list, win_probs, all_pick_lists)
 
         # Current earnings (non-probability-weighted, just live pos, tie-split)
-        def _live_pos(golfer: str) -> int | None:
-            o = odds_map.get(golfer)
-            if o and o.missed_cut:
-                return _MC_POS
-            return o.current_pos if o else None
+        mc_amount = position_amounts.get(_MC_POS, 0.0)
 
-        curr_earn = sum(
-            calculator.current_earnings_from_position(_live_pos(p.golfer_name), tie_position_amounts)
-            for p in entrant.picks
-        )
+        def _pick_live_earn(golfer: str) -> float:
+            o = odds_map.get(golfer)
+            if not o:
+                return 0.0
+            if o.missed_cut:
+                return mc_amount
+            return calculator.current_earnings_from_position(o.current_pos, tie_position_amounts)
+
+        curr_earn = sum(_pick_live_earn(p.golfer_name) for p in entrant.picks)
 
         pick_details: list[PickDetailSchema] = []
         for pick in sorted(entrant.picks, key=lambda p: p.pick_order):
             odds = odds_map.get(pick.golfer_name)
             pick_probs = position_probs.get(pick.golfer_name, {})
             pick_proj = calculator.projected_earnings([pick.golfer_name], {pick.golfer_name: pick_probs}, position_amounts)
-            pick_curr = calculator.current_earnings_from_position(
-                _MC_POS if (odds and odds.missed_cut) else (odds.current_pos if odds else None),
-                tie_position_amounts,
-            )
+            if odds and odds.missed_cut:
+                pick_curr = mc_amount
+            else:
+                pick_curr = calculator.current_earnings_from_position(
+                    odds.current_pos if odds else None,
+                    tie_position_amounts,
+                )
             coverage = (golfer_entrant_count[pick.golfer_name] - 1) / max(1, total_entrants - 1)
 
             pick_details.append(PickDetailSchema(
