@@ -53,6 +53,12 @@ export function LiveLeaderboard({ eventId }: LiveLeaderboardProps) {
     );
   }
 
+  // Count how many players share each position to determine ties
+  const posCounts = new Map<number, number>();
+  players.forEach((p) => {
+    if (p.current_pos != null) posCounts.set(p.current_pos, (posCounts.get(p.current_pos) ?? 0) + 1);
+  });
+
   return (
     <div className="overflow-auto max-h-[600px]">
       <div className="px-4 pb-1 pt-0 text-xs text-muted-foreground">
@@ -71,7 +77,11 @@ export function LiveLeaderboard({ eventId }: LiveLeaderboardProps) {
         </thead>
         <tbody>
           {players.map((player) => (
-            <PlayerRow key={player.normalized_name} player={player} />
+            <PlayerRow
+              key={player.normalized_name}
+              player={player}
+              isTied={(posCounts.get(player.current_pos ?? -1) ?? 0) > 1}
+            />
           ))}
         </tbody>
       </table>
@@ -79,7 +89,7 @@ export function LiveLeaderboard({ eventId }: LiveLeaderboardProps) {
   );
 }
 
-function PlayerRow({ player }: { player: PlayerOdds }) {
+function PlayerRow({ player, isTied }: { player: PlayerOdds; isTied: boolean }) {
   const isTopFive = player.current_pos != null && player.current_pos <= 5;
   const isTopTen = player.current_pos != null && player.current_pos <= 10;
 

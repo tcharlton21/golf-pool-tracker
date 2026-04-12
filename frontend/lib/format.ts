@@ -24,9 +24,9 @@ export function formatScore(score: number | null | undefined): string {
   return score > 0 ? `+${score}` : `${score}`;
 }
 
-export function formatPos(pos: number | null | undefined): string {
+export function formatPos(pos: number | null | undefined, isTied = false): string {
   if (pos == null) return "—";
-  return `T${pos}`;
+  return isTied ? `T${pos}` : `${pos}`;
 }
 
 export function formatAmericanOdds(odds: number | null | undefined): string {

@@ -10,12 +10,15 @@ export default function MarshalekPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <header className="px-6 py-3 border-b border-border/30 bg-card/50 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold tracking-wide text-foreground">
-            Golf Pool Tracker
-          </span>
-          <span className="text-muted-foreground/30 text-xs">|</span>
-          <span className="text-xs text-muted-foreground">Marshalek Pool</span>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold tracking-wide text-foreground">
+              Golf Pool Tracker
+            </span>
+            <span className="text-muted-foreground/30 text-xs">|</span>
+            <span className="text-xs text-muted-foreground">Marshalek Pool</span>
+          </div>
+          <span className="text-xs text-yellow-500/70 font-medium">Estimated Payouts, Not Official!</span>
         </div>
       </header>
 

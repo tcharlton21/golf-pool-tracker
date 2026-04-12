@@ -60,6 +60,8 @@ export function PoolView({ poolType, events }: PoolViewProps) {
   const [sortBy, setSortBy] = useState<"live" | "projected">("live");
   // Mobile-only tab: "pool" or "tournament" (ignored on desktop)
   const [mobileTab, setMobileTab] = useState<"pool" | "tournament">("pool");
+  // Mobile-only hypothetical view: "order" (drag panel) or "leaderboard"
+  const [hypotheticalMobileView, setHypotheticalMobileView] = useState<"order" | "leaderboard">("order");
 
   const { leaderboard, isLoading, error, refresh } = usePoolData(selectedEventId, poolType);
   const { liveOdds } = useLiveOdds(selectedEventId);
@@ -87,6 +89,7 @@ export function PoolView({ poolType, events }: PoolViewProps) {
     if (hypotheticalMode) {
       setHypotheticalMode(false);
       setHypotheticalOrder([]);
+      setHypotheticalMobileView("order");
       return;
     }
     const players = liveOdds?.players ?? [];
@@ -299,18 +302,38 @@ export function PoolView({ poolType, events }: PoolViewProps) {
 
       {hypotheticalMode ? (
         // ── Hypothetical mode ──────────────────────────────────────────────
-        // Mobile: full-width drag panel only
+        // Mobile: drag panel OR leaderboard (toggled by button)
         // Desktop: pool leaderboard (left) + drag panel (right sidebar)
-        <div className="flex gap-4 flex-1 min-h-0">
-          <div className="hidden md:block flex-1 min-w-0">
-            {poolLeaderboard}
+        <div className="flex flex-col flex-1 min-h-0 gap-2">
+          {/* Mobile toggle bar */}
+          <div className="flex md:hidden border-b border-border/40 -mx-1">
+            {(["order", "leaderboard"] as const).map((view) => (
+              <button
+                key={view}
+                onClick={() => setHypotheticalMobileView(view)}
+                className={`flex-1 py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                  hypotheticalMobileView === view
+                    ? view === "leaderboard" ? "text-amber-400 border-b-2 border-amber-400" : "text-foreground border-b-2 border-primary"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {view === "order" ? "Drag Order" : "Updated Leaderboard"}
+              </button>
+            ))}
           </div>
-          {/* Mobile hint */}
-          <div className="flex-1 md:flex-none md:w-[30%] md:shrink-0 flex flex-col gap-2">
-            <div className="md:hidden text-xs text-amber-400/80 font-medium">
-              Drag to reorder · scenario updates live
+          <div className="flex gap-4 flex-1 min-h-0">
+            {/* Desktop: always show pool leaderboard */}
+            <div className="hidden md:block flex-1 min-w-0">
+              {poolLeaderboard}
             </div>
-            {sidebarContent}
+            {/* Mobile: show selected view */}
+            <div className="md:hidden flex-1 min-w-0">
+              {hypotheticalMobileView === "leaderboard" ? poolLeaderboard : sidebarContent}
+            </div>
+            {/* Desktop sidebar */}
+            <div className="hidden md:flex md:flex-none md:w-[30%] flex-col">
+              {sidebarContent}
+            </div>
           </div>
         </div>
       ) : (
