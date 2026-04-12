@@ -41,10 +41,6 @@ def make_position_probs(
     t10 = top10_pct or 0.0
     t20 = top20_pct or 0.0
 
-    # No probability signal → missed cut or no data; don't fabricate earnings
-    if w == 0.0 and t5 == 0.0 and t10 == 0.0 and t20 == 0.0:
-        return {}
-
     # Clamp to avoid negative bands from data inconsistencies
     t5 = max(t5, w)
     t10 = max(t10, t5)

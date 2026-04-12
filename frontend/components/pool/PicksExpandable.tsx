@@ -19,7 +19,7 @@ export function PicksExpandable({ picks, poolType }: PicksExpandableProps) {
   const sortedPicks = [...picks].sort((a, b) => a.pick_order - b.pick_order);
 
   return (
-    <div className="mt-1 mb-2 mx-2 rounded border border-border/40 bg-secondary/30 overflow-x-auto">
+    <div className="mt-1 mb-2 mx-2 rounded border border-border/40 bg-secondary/30 overflow-x-auto max-w-[calc(100vw-2rem)] md:max-w-none">
       <table className="text-xs md:w-full" style={{ minWidth: isPiper ? "640px" : "560px" }}>
         <thead>
           <tr className="text-muted-foreground border-b border-border/40">

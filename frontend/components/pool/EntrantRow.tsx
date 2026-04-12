@@ -64,7 +64,7 @@ export function EntrantRow({ rank, entrant, poolType, scenarioEarnings, sortBy =
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={isHypothetical ? 4 : 6} className="p-0 overflow-hidden">
+          <td colSpan={isHypothetical ? 4 : 6} className="p-0">
             <PicksExpandable picks={entrant.picks} poolType={poolType} />
           </td>
         </tr>
