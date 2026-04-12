@@ -176,9 +176,6 @@ export function PoolView({ poolType, events }: PoolViewProps) {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {selectedEventId && !hypotheticalMode && (
-              <UploadSheet eventId={selectedEventId} poolType={poolType} onSuccess={refresh} />
-            )}
             <Button
               variant="outline"
               size="sm"
