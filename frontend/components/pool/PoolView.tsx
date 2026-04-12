@@ -171,7 +171,7 @@ export function PoolView({ poolType, events }: PoolViewProps) {
         >
           <FlaskConical className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">{hypotheticalMode ? "Exit Hypothetical" : "Hypothetical"}</span>
-          <span className="sm:hidden">{hypotheticalMode ? "Exit" : "Hypo"}</span>
+          <span className="sm:hidden">{hypotheticalMode ? "Exit" : "Hypothetical"}</span>
         </Button>
         {!hypotheticalMode && (
           <Button
