@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import useSWR from "swr";
+import { Star } from "lucide-react";
 import { useLiveOdds } from "@/hooks/useLiveOdds";
+import { useFavorites } from "@/hooks/useFavorites";
 import { fetchPlayerHoles } from "@/lib/api";
 import {
   flagEmoji,
@@ -25,7 +27,10 @@ interface LiveLeaderboardProps {
 export function LiveLeaderboard({ eventId, myPickNames = [] }: LiveLeaderboardProps) {
   const { liveOdds, isLoading, error } = useLiveOdds(eventId);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const myPickSet = new Set(myPickNames);
+  const { favoriteNames, toggle, canFavorite } = useFavorites(eventId);
+  // When logged in, favorites are the source of truth for "My Picks";
+  // when logged out, fall back to the externally provided picks list.
+  const myPickSet = canFavorite ? favoriteNames : new Set(myPickNames);
 
   if (isLoading) {
     return (
@@ -99,6 +104,9 @@ export function LiveLeaderboard({ eventId, myPickNames = [] }: LiveLeaderboardPr
                   player={player}
                   isTied={(posCounts.get(player.current_pos ?? -1) ?? 0) > 1}
                   isMine
+                  isFavorite={favoriteNames.has(player.normalized_name)}
+                  canFavorite={canFavorite}
+                  onToggleFavorite={() => toggle(player.normalized_name)}
                   isExpanded={expanded === `mine-${player.normalized_name}`}
                   onToggle={() => onToggle(`mine-${player.normalized_name}`)}
                   eventId={eventId}
@@ -117,6 +125,9 @@ export function LiveLeaderboard({ eventId, myPickNames = [] }: LiveLeaderboardPr
               player={player}
               isTied={(posCounts.get(player.current_pos ?? -1) ?? 0) > 1}
               isMine={myPickSet.has(player.normalized_name)}
+              isFavorite={favoriteNames.has(player.normalized_name)}
+              canFavorite={canFavorite}
+              onToggleFavorite={() => toggle(player.normalized_name)}
               isExpanded={expanded === player.normalized_name}
               onToggle={() => onToggle(player.normalized_name)}
               eventId={eventId}
@@ -132,18 +143,34 @@ interface PlayerRowGroupProps {
   player: PlayerOdds;
   isTied: boolean;
   isMine: boolean;
+  isFavorite: boolean;
+  canFavorite: boolean;
+  onToggleFavorite: () => void;
   isExpanded: boolean;
   onToggle: () => void;
   eventId: number;
 }
 
-function PlayerRowGroup({ player, isTied, isMine, isExpanded, onToggle, eventId }: PlayerRowGroupProps) {
+function PlayerRowGroup({
+  player,
+  isTied,
+  isMine,
+  isFavorite,
+  canFavorite,
+  onToggleFavorite,
+  isExpanded,
+  onToggle,
+  eventId,
+}: PlayerRowGroupProps) {
   return (
     <>
       <PlayerRow
         player={player}
         isTied={isTied}
         isMine={isMine}
+        isFavorite={isFavorite}
+        canFavorite={canFavorite}
+        onToggleFavorite={onToggleFavorite}
         isExpanded={isExpanded}
         onClick={onToggle}
       />
@@ -162,12 +189,18 @@ function PlayerRow({
   player,
   isTied,
   isMine,
+  isFavorite,
+  canFavorite,
+  onToggleFavorite,
   isExpanded,
   onClick,
 }: {
   player: PlayerOdds;
   isTied: boolean;
   isMine: boolean;
+  isFavorite: boolean;
+  canFavorite: boolean;
+  onToggleFavorite: () => void;
   isExpanded: boolean;
   onClick: () => void;
 }) {
@@ -188,6 +221,25 @@ function PlayerRow({
       <td
         className={`py-1.5 px-0.5 truncate ${isMine ? "text-primary font-semibold" : "text-foreground/85"}`}
       >
+        {canFavorite && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            aria-label={isFavorite ? "Unstar" : "Star"}
+            className="mr-1 inline-flex align-middle text-muted-foreground/50 hover:text-amber-300 transition-colors"
+          >
+            <Star
+              className="w-3 h-3 sm:w-3.5 sm:h-3.5"
+              fill={isFavorite ? "currentColor" : "none"}
+              stroke="currentColor"
+              strokeWidth={1.75}
+              style={isFavorite ? { color: "rgb(252 211 77)" } : undefined}
+            />
+          </button>
+        )}
         <span className="mr-1">{flagEmoji(player.flag)}</span>
         {formatShortName(player.normalized_name)}
       </td>
