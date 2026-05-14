@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -7,8 +8,21 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
-from models.database import Event, LiveOddsCache, PlayerCache, get_db, SessionLocal
-from schemas.live_schemas import LiveOddsResponse, PlayerOddsSchema, RefreshSummary
+from models.database import (
+    CourseHole,
+    Event,
+    LiveOddsCache,
+    PlayerCache,
+    SessionLocal,
+    get_db,
+)
+from schemas.live_schemas import (
+    HoleRoundSchema,
+    LiveOddsResponse,
+    PlayerHolesResponse,
+    PlayerOddsSchema,
+    RefreshSummary,
+)
 from services import datagolf, draftkings, player_matcher
 from services.calculator import american_to_prob
 
@@ -39,13 +53,16 @@ def get_live_odds(event_id: int, db: Session = Depends(get_db)):
             normalized_name=player.normalized_name,
             datagolf_name=player.datagolf_name,
             dk_name=player.dk_name,
+            flag=odds.flag,
             current_pos=odds.current_pos,
             current_score=odds.current_score,
+            today_score=odds.today_score,
             thru=odds.thru,
             win_pct=odds.win_pct,
             top5_pct=odds.top5_pct,
             top10_pct=odds.top10_pct,
             top20_pct=odds.top20_pct,
+            make_cut_pct=odds.make_cut_pct,
             dk_win_odds=odds.dk_win_odds,
             fetched_at=odds.fetched_at,
         )
@@ -54,6 +71,50 @@ def get_live_odds(event_id: int, db: Session = Depends(get_db)):
 
     latest_fetch = max((p.fetched_at for p in players), default=None)
     return LiveOddsResponse(event_id=event_id, players=players, fetched_at=latest_fetch)
+
+
+@router.get("/{event_id}/holes/{normalized_name}", response_model=PlayerHolesResponse)
+def get_player_holes(event_id: int, normalized_name: str, db: Session = Depends(get_db)):
+    """Hole-by-hole scores + course par for a player at a given event."""
+    event = db.get(Event, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    row = (
+        db.query(LiveOddsCache, PlayerCache)
+        .join(PlayerCache, LiveOddsCache.player_cache_id == PlayerCache.id)
+        .filter(LiveOddsCache.event_id == event_id)
+        .filter(PlayerCache.normalized_name == normalized_name)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Player {normalized_name} not found for event")
+
+    odds, player = row
+    rounds: list[HoleRoundSchema] = []
+    if odds.rounds_json:
+        for r in json.loads(odds.rounds_json):
+            rounds.append(HoleRoundSchema(
+                round_num=r["round_num"],
+                course_code=r.get("course_code"),
+                morning=r.get("morning"),
+                tee_time=r.get("tee_time"),
+                # JSON object keys come back as strings — coerce to int for the typed schema
+                scores={int(k): v for k, v in r.get("scores", {}).items()},
+            ))
+
+    course_code = next((r.course_code for r in rounds if r.course_code), None)
+    pars: dict[int, int] = {}
+    if course_code:
+        for hole_row in db.query(CourseHole).filter_by(event_id=event_id, course_code=course_code).all():
+            pars[hole_row.hole] = hole_row.par
+
+    return PlayerHolesResponse(
+        normalized_name=player.normalized_name,
+        flag=odds.flag,
+        rounds=rounds,
+        pars=pars,
+    )
 
 
 @router.post("/{event_id}/refresh", response_model=RefreshSummary)
@@ -138,7 +199,7 @@ async def _do_refresh(
         return_exceptions=False,
     )
 
-    dg_players, dg_error = dg_result
+    dg_data, dg_error = dg_result
     dk_players, dk_error = dk_result
 
     if dg_error:
@@ -161,7 +222,20 @@ async def _do_refresh(
             else:
                 unmatched_names.append(f"DK:{dk_player.player_name}")
 
+    # Persist course pars (idempotent: replace any existing rows for this event)
+    if dg_data and dg_data.course_pars:
+        db.query(CourseHole).filter_by(event_id=event_id).delete()
+        for course_code, hole_pars in dg_data.course_pars.items():
+            for hole, par in hole_pars.items():
+                db.add(CourseHole(
+                    event_id=event_id,
+                    course_code=course_code,
+                    hole=hole,
+                    par=par,
+                ))
+
     # Upsert live_odds_cache from DataGolf data
+    dg_players = dg_data.players if dg_data else None
     if dg_players:
         for dg_player in dg_players:
             if not dg_player.player_name:
@@ -170,6 +244,16 @@ async def _do_refresh(
             matched = player_matcher.get_or_create_from_datagolf(dg_player.player_name, db)
             players_matched += 1
             dk_odds = dk_odds_by_name.get(matched.normalized_name)
+            rounds_json = json.dumps([
+                {
+                    "round_num": r.round_num,
+                    "course_code": r.course_code,
+                    "morning": r.morning,
+                    "tee_time": r.tee_time,
+                    "scores": r.scores,
+                }
+                for r in dg_player.rounds
+            ]) if dg_player.rounds else None
 
             existing = (
                 db.query(LiveOddsCache)
@@ -181,10 +265,15 @@ async def _do_refresh(
                 existing.top5_pct = dg_player.top5_pct
                 existing.top10_pct = dg_player.top10_pct
                 existing.top20_pct = dg_player.top20_pct
+                existing.make_cut_pct = dg_player.make_cut_pct
                 existing.current_pos = dg_player.current_pos
                 existing.current_score = dg_player.current_score
+                existing.today_score = dg_player.today_score
                 existing.thru = dg_player.thru
                 existing.missed_cut = dg_player.missed_cut
+                existing.flag = dg_player.flag
+                existing.dg_player_num = dg_player.player_num
+                existing.rounds_json = rounds_json
                 existing.dk_win_odds = dk_odds
                 existing.fetched_at = fetched_at
             else:
@@ -195,10 +284,15 @@ async def _do_refresh(
                     top5_pct=dg_player.top5_pct,
                     top10_pct=dg_player.top10_pct,
                     top20_pct=dg_player.top20_pct,
+                    make_cut_pct=dg_player.make_cut_pct,
                     current_pos=dg_player.current_pos,
                     current_score=dg_player.current_score,
+                    today_score=dg_player.today_score,
                     thru=dg_player.thru,
                     missed_cut=dg_player.missed_cut,
+                    flag=dg_player.flag,
+                    dg_player_num=dg_player.player_num,
+                    rounds_json=rounds_json,
                     dk_win_odds=dk_odds,
                     fetched_at=fetched_at,
                 ))
@@ -236,10 +330,10 @@ async def _do_refresh(
     )
 
 
-async def _safe_scrape_datagolf() -> tuple[list | None, str | None]:
+async def _safe_scrape_datagolf() -> tuple[datagolf.LiveModelData | None, str | None]:
     try:
-        players = await datagolf.scrape_live_model()
-        return players, None
+        data = await datagolf.fetch_live_model()
+        return data, None
     except Exception as exc:
         return None, str(exc)
 

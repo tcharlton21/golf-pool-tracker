@@ -3,12 +3,14 @@ import {
   EventListItemSchema,
   LeaderboardResponseSchema,
   LiveOddsResponseSchema,
+  PlayerHolesResponseSchema,
   PursePositionSchema,
   RefreshSummarySchema,
   UploadPreviewResponseSchema,
   type EventListItem,
   type LeaderboardResponse,
   type LiveOddsResponse,
+  type PlayerHolesResponse,
   type PursePosition,
   type RefreshSummary,
   type UploadPreviewResponse,
@@ -63,6 +65,16 @@ export function fetchLeaderboard(
 
 export function fetchLiveOdds(eventId: number): Promise<LiveOddsResponse> {
   return apiFetch(`/live/${eventId}/odds`, LiveOddsResponseSchema);
+}
+
+export function fetchPlayerHoles(
+  eventId: number,
+  normalizedName: string,
+): Promise<PlayerHolesResponse> {
+  return apiFetch(
+    `/live/${eventId}/holes/${encodeURIComponent(normalizedName)}`,
+    PlayerHolesResponseSchema,
+  );
 }
 
 export async function triggerRefresh(eventId: number): Promise<RefreshSummary> {

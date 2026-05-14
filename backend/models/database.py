@@ -100,15 +100,30 @@ class LiveOddsCache(Base):
     top5_pct = Column(Float)
     top10_pct = Column(Float)
     top20_pct = Column(Float)
+    make_cut_pct = Column(Float)
     dk_win_odds = Column(Integer)                    # American odds integer (e.g. +1500)
     current_pos = Column(Integer)
-    current_score = Column(Integer)                  # strokes to par (negative = under)
+    current_score = Column(Integer)                  # strokes to par cumulative
+    today_score = Column(Integer)                    # strokes to par today
     thru = Column(String)                            # "F", "14", "-"
-    missed_cut = Column(Boolean, default=False)      # True when DataGolf reports MC/WD/DQ
+    missed_cut = Column(Boolean, default=False)
+    flag = Column(String)                            # "USA", "GER", country code
+    dg_player_num = Column(Integer)                  # DataGolf player_num (joins to PlayerHoleRound)
+    rounds_json = Column(Text)                       # JSON: list[{round, course, scores: {1..18}, tee_time, morning}]
     fetched_at = Column(String, nullable=False)
 
     event = relationship("Event", back_populates="live_odds")
     player = relationship("PlayerCache", back_populates="live_odds")
+
+
+class CourseHole(Base):
+    __tablename__ = "course_holes"
+
+    id = Column(Integer, primary_key=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    course_code = Column(String, nullable=False)     # "AR" — matches LiveOddsCache.rounds_json[].course
+    hole = Column(Integer, nullable=False)           # 1–18
+    par = Column(Integer, nullable=False)
 
 
 def get_db():

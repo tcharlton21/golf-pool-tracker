@@ -39,13 +39,16 @@ export const PlayerOddsSchema = z.object({
   normalized_name: z.string(),
   datagolf_name: z.string().nullable(),
   dk_name: z.string().nullable(),
+  flag: z.string().nullable(),
   current_pos: z.number().nullable(),
   current_score: z.number().nullable(),
+  today_score: z.number().nullable(),
   thru: z.string().nullable(),
   win_pct: z.number().nullable(),
   top5_pct: z.number().nullable(),
   top10_pct: z.number().nullable(),
   top20_pct: z.number().nullable(),
+  make_cut_pct: z.number().nullable(),
   dk_win_odds: z.number().nullable(),
   fetched_at: z.string(),
 });
@@ -54,6 +57,21 @@ export const LiveOddsResponseSchema = z.object({
   event_id: z.number(),
   players: z.array(PlayerOddsSchema),
   fetched_at: z.string().nullable(),
+});
+
+export const HoleRoundSchema = z.object({
+  round_num: z.number(),
+  course_code: z.string().nullable(),
+  morning: z.boolean().nullable(),
+  tee_time: z.string().nullable(),
+  scores: z.record(z.string(), z.number().nullable()),
+});
+
+export const PlayerHolesResponseSchema = z.object({
+  normalized_name: z.string(),
+  flag: z.string().nullable(),
+  rounds: z.array(HoleRoundSchema),
+  pars: z.record(z.string(), z.number()),
 });
 
 export const EventListItemSchema = z.object({
@@ -110,6 +128,8 @@ export type EntrantLeaderboardRow = z.infer<typeof EntrantLeaderboardRowSchema>;
 export type LeaderboardResponse = z.infer<typeof LeaderboardResponseSchema>;
 export type PlayerOdds = z.infer<typeof PlayerOddsSchema>;
 export type LiveOddsResponse = z.infer<typeof LiveOddsResponseSchema>;
+export type HoleRound = z.infer<typeof HoleRoundSchema>;
+export type PlayerHolesResponse = z.infer<typeof PlayerHolesResponseSchema>;
 export type EventListItem = z.infer<typeof EventListItemSchema>;
 export type RefreshSummary = z.infer<typeof RefreshSummarySchema>;
 export type UploadPreviewResponse = z.infer<typeof UploadPreviewResponseSchema>;

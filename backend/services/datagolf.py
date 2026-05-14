@@ -2,22 +2,25 @@
 DataGolf live model data via JSONP API endpoints (no Playwright needed).
 
 Endpoints (letzig.datagolf.com):
-  GET /live-model/get-main-data/mini
-      Response: {"active": ["pga"], "pga": {"lb": [{"d":..,"f":"Rory","l":"McIlroy","p":"1","s":"-12","t":7,"w":"59.0%"}, ...]}}
-      - lb = live leaderboard, w = live win probability, s = score, t = thru, p = position
+  GET /live-model/get-main-data/pga
+      Full live model payload for the active PGA event:
+        - main: list of per-player live probabilities and live score
+            {dg_id, player_num, name ("Last, First"), flag, current_pos, current_score,
+             today, thru, teetime, cut, top5, top10, top20, win, course, round}
+        - player_scores: dict {player_num: {round_num: {1..18: stroke|null, course_code, morning, s, t}, info: {...}}}
+        - course: list per (course, hole) of {course, hole, par, yardage, played_*, avg_*}
+        - cut_info, hole_totals, tournament_status, weather, etc.
 
-  GET /live-model/get-player-data?players=["Last, First",...]
-      Response: {"lastfirst": [{"win": 0.061, "top5": 0.254, "top10": 0.406, "top20": 0.605, ...}], ...}
-      - win/top5/top10/top20 = pre-tournament probabilities (used to estimate live top-N via scaling)
-
-Strategy: use live win% from pga.lb; scale pre-tournament top-N by (live_win / pre_win) to approximate
-live top-N. This correctly models players who have surged or collapsed during the tournament.
+  Why this endpoint vs the older `mini` endpoint:
+    `mini` only returns basic leaderboard rows. The full `pga` payload contains live
+    make-cut, today's score, hole-by-hole scores, and per-hole pars — everything we need.
 """
 
 import json
 import logging
+import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -36,16 +39,36 @@ _HEADERS = {
 
 
 @dataclass
+class HoleScores:
+    round_num: int                       # 1–4
+    course_code: str | None              # e.g. "AR"
+    morning: bool | None                 # True for morning wave
+    tee_time: str | None                 # e.g. "8:24 AM"
+    scores: dict[int, int | None]        # {1..18: stroke_count or None}
+
+
+@dataclass
 class PlayerProbDTO:
-    player_name: str        # "First Last" normalized
-    current_score: int | None
-    thru: str | None        # "F", "7", "--"
-    win_pct: float | None   # 0.0–1.0 (live)
-    top5_pct: float | None  # 0.0–1.0 (live-scaled from pre-tournament)
+    player_name: str                     # "First Last" normalized for matching
+    player_num: int | None               # DataGolf player_num (joins to player_scores)
+    flag: str | None                     # "USA", "GER", ...
+    current_score: int | None            # cumulative tournament strokes-to-par
+    today_score: int | None              # today's strokes-to-par
+    thru: str | None                     # "F", "7", "--"
+    win_pct: float | None                # 0.0–1.0 live
+    top5_pct: float | None
     top10_pct: float | None
     top20_pct: float | None
+    make_cut_pct: float | None
     current_pos: int | None
-    missed_cut: bool = False  # True when DataGolf position string is MC/WD/DQ/CUT
+    missed_cut: bool = False             # True for MC/WD/DQ/CUT
+    rounds: list[HoleScores] = field(default_factory=list)
+
+
+@dataclass
+class LiveModelData:
+    players: list[PlayerProbDTO]
+    course_pars: dict[str, dict[int, int]]  # {course_code: {hole_num: par}}
 
 
 def _strip_jsonp(text: str) -> str:
@@ -54,11 +77,8 @@ def _strip_jsonp(text: str) -> str:
     return text[start + 1 : end]
 
 
-def _parse_win_pct(val: str | float | None) -> float | None:
-    """Parse win% string '59.0%' or '0.9%' → decimal probability.
-    Always divides % strings by 100 unconditionally (avoids the >1.0 heuristic
-    failing on values like '1.0%' or '0.9%' which are valid sub-1% probabilities).
-    """
+def _parse_pct(val: str | float | None) -> float | None:
+    """Accepts '59.0%' string or already-decimal float. Returns 0.0–1.0 or None."""
     if val is None:
         return None
     if isinstance(val, str):
@@ -68,24 +88,30 @@ def _parse_win_pct(val: str | float | None) -> float | None:
                 return float(s[:-1]) / 100.0
             except ValueError:
                 return None
-        # No % suffix — treat as decimal already
         try:
             v = float(s)
             return v / 100.0 if v > 1.0 else v
         except ValueError:
             return None
-    v = float(val)
+    try:
+        v = float(val)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(v):
+        return None
     return v / 100.0 if v > 1.0 else v
 
 
-def _parse_score(val) -> int | None:
+def _parse_int_score(val) -> int | None:
     if val is None:
         return None
+    if isinstance(val, float) and math.isnan(val):
+        return None
     s = str(val).strip().upper()
-    if s in ("E", "EVEN", "-", "--"):
-        return 0
+    if s in ("E", "EVEN", "-", "--", ""):
+        return 0 if s in ("E", "EVEN") else None
     try:
-        return int(s.replace("+", ""))
+        return int(round(float(s.replace("+", ""))))
     except ValueError:
         return None
 
@@ -94,7 +120,6 @@ _MISSED_CUT_STRINGS = {"MC", "CUT", "WD", "DQ"}
 
 
 def _parse_pos(val) -> tuple[int | None, bool]:
-    """Returns (position, missed_cut). missed_cut=True for MC/WD/DQ/CUT positions."""
     if val is None:
         return None, False
     s = str(val).strip().upper().lstrip("T")
@@ -108,162 +133,141 @@ def _parse_pos(val) -> tuple[int | None, bool]:
         return None, False
 
 
-def _parse_thru(val) -> str | None:
-    if val is None:
+def _format_thru(thru_holes: int | None) -> str | None:
+    if thru_holes is None:
         return None
-    s = str(val).strip()
-    return s if s and s not in ("null", "None") else None
-
-
-def _make_dg_key(name: str) -> str:
-    """'McIlroy, Rory' → 'mcilroyrory' (matches DataGolf response keys)."""
-    return (
-        name.lower()
-        .replace(",", "")
-        .replace(" ", "")
-        .replace(".", "")
-        .replace("-", "")
-        .replace("'", "")
-    )
+    if thru_holes >= 18:
+        return "F"
+    if thru_holes <= 0:
+        return None
+    return str(thru_holes)
 
 
 def _last_first_to_first_last(name: str) -> str:
     if "," in name:
-        parts = name.split(",", 1)
-        return f"{parts[1].strip()} {parts[0].strip()}"
+        last, first = name.split(",", 1)
+        return f"{first.strip()} {last.strip()}"
     return name.strip()
 
 
-async def scrape_live_model() -> list[PlayerProbDTO]:
-    """
-    Fetch DataGolf live model data and return player probabilities.
-    Raises RuntimeError if no live PGA Tour event.
+# Allow malformed JSON from DataGolf (uses bare `NaN` for today's score before
+# play starts, which json.loads accepts in Python only when parse_constant is set).
+def _parse_jsonp_payload(text: str) -> dict:
+    inner = _strip_jsonp(text)
+    return json.loads(inner, parse_constant=lambda c: None)
+
+
+async def fetch_live_model() -> LiveModelData:
+    """Fetch DataGolf live model and return per-player live data + course pars.
+
+    Raises RuntimeError if no active PGA event or empty payload.
     """
     async with httpx.AsyncClient(timeout=20, headers=_HEADERS, follow_redirects=True) as client:
-        # ── Step 1: get live leaderboard from mini endpoint ───────────────────
+        # First check which tour is active so we can request the right endpoint
         ts = int(time.time() * 1000)
         mini_resp = await client.get(
             f"{_BASE}/get-main-data/mini",
             params={"callback": "dg", "_": ts},
         )
         mini_resp.raise_for_status()
-        mini_data = json.loads(_strip_jsonp(mini_resp.text))
-
+        mini_data = _parse_jsonp_payload(mini_resp.text)
         active_tours: list[str] = mini_data.get("active", [])
         tour = "pga" if "pga" in active_tours else (active_tours[0] if active_tours else None)
         if not tour:
             raise RuntimeError(f"DataGolf: no active tour (active={active_tours})")
 
-        pga_section = mini_data.get(tour, {})
-        lb: list[dict] = pga_section.get("lb", [])
-        if not lb:
-            raise RuntimeError(f"DataGolf: empty leaderboard for tour '{tour}'")
-
-        logger.info(
-            f"DataGolf: tour={tour}, event={pga_section.get('info', {}).get('event_name', '?')}, "
-            f"{len(lb)} players in leaderboard"
+        ts = int(time.time() * 1000)
+        full_resp = await client.get(
+            f"{_BASE}/get-main-data/{tour}",
+            params={"callback": "dg", "_": ts},
         )
+        full_resp.raise_for_status()
+        data = _parse_jsonp_payload(full_resp.text)
 
-        # Build per-player live data: last_first_name → lb_row
-        live_by_key: dict[str, dict] = {}
-        # Also build "Last, First" names to query player-data
-        player_names: list[str] = []
-        for row in lb:
-            first = row.get("f", "")
-            last = row.get("l", "")
-            if not first or not last:
-                continue
-            last_first = f"{last}, {first}"
-            key = _make_dg_key(last_first)
-            live_by_key[key] = row
-            player_names.append(last_first)
+    main: list[dict] = data.get("main", [])
+    if not main:
+        raise RuntimeError(f"DataGolf: empty 'main' for tour '{tour}'")
 
-        # ── Step 2: fetch pre-tournament top-N for scaling ────────────────────
-        pretourney: dict[str, dict] = {}
-        batch_size = 80
-        for i in range(0, len(player_names), batch_size):
-            batch = player_names[i : i + batch_size]
-            ts = int(time.time() * 1000)
-            pd_resp = await client.get(
-                f"{_BASE}/get-player-data",
-                params={"callback": "dg", "players": json.dumps(batch), "_": ts},
-            )
-            pd_resp.raise_for_status()
-            batch_data: dict = json.loads(_strip_jsonp(pd_resp.text))
-            # Each value is a list of round entries; take the one with highest win (most informative)
-            for key, rounds in batch_data.items():
-                if rounds:
-                    # Use first entry (consistent snapshot)
-                    pretourney[key] = rounds[0] if isinstance(rounds, list) else rounds
+    course_rows: list[dict] = data.get("course", [])
+    course_pars: dict[str, dict[int, int]] = {}
+    for row in course_rows:
+        c = row.get("course")
+        h = row.get("hole")
+        p = row.get("par")
+        if c is None or h is None or p is None:
+            continue
+        course_pars.setdefault(c, {})[int(h)] = int(p)
 
-        logger.info(f"DataGolf: pre-tournament data for {len(pretourney)} players")
+    player_scores_raw: dict = data.get("player_scores", {}) or {}
 
-        # ── Step 3: build DTOs ────────────────────────────────────────────────
-        results: list[PlayerProbDTO] = []
-        for last_first in player_names:
-            key = _make_dg_key(last_first)
-            lb_row = live_by_key.get(key, {})
-            pt = pretourney.get(key, {})
+    players: list[PlayerProbDTO] = []
+    for entry in main:
+        name = entry.get("name")
+        if not name:
+            continue
+        pos, missed_cut = _parse_pos(entry.get("current_pos"))
+        thru_raw = entry.get("thru")
+        thru = _format_thru(int(thru_raw)) if isinstance(thru_raw, (int, float)) and not (
+            isinstance(thru_raw, float) and math.isnan(thru_raw)
+        ) else None
 
-            live_win = _parse_win_pct(lb_row.get("w"))
-            pre_win_raw = pt.get("win")
-            pre_win = float(pre_win_raw) if pre_win_raw is not None else None
-            # pre-tournament values are already 0-1 decimals
-            pre_top5 = _safe_float(pt.get("top5"))
-            pre_top10 = _safe_float(pt.get("top10"))
-            pre_top20 = _safe_float(pt.get("top20"))
+        player_num = entry.get("player_num")
+        rounds = _build_rounds(player_scores_raw.get(str(player_num), {}))
 
-            # Scale pre-tournament top-N by (live_win / pre_win) to approximate live top-N
-            top5_pct = _scale_topn(pre_top5, pre_win, live_win)
-            top10_pct = _scale_topn(pre_top10, pre_win, live_win)
-            top20_pct = _scale_topn(pre_top20, pre_win, live_win)
+        players.append(PlayerProbDTO(
+            player_name=_last_first_to_first_last(name),
+            player_num=int(player_num) if player_num is not None else None,
+            flag=entry.get("flag"),
+            current_score=_parse_int_score(entry.get("current_score")),
+            today_score=_parse_int_score(entry.get("today")),
+            thru=thru,
+            win_pct=_parse_pct(entry.get("win")),
+            top5_pct=_parse_pct(entry.get("top5")),
+            top10_pct=_parse_pct(entry.get("top10")),
+            top20_pct=_parse_pct(entry.get("top20")),
+            make_cut_pct=_parse_pct(entry.get("cut")),
+            current_pos=pos,
+            missed_cut=missed_cut,
+            rounds=rounds,
+        ))
 
-            score = _parse_score(lb_row.get("s"))
-            thru_raw = lb_row.get("t")
-            # thru is integer holes played (0 = not started, 18 = finished)
-            if isinstance(thru_raw, int):
-                thru = "F" if thru_raw == 18 else (str(thru_raw) if thru_raw > 0 else "--")
-            else:
-                thru = _parse_thru(thru_raw)
-            pos, missed_cut = _parse_pos(lb_row.get("p"))
-
-            display_name = _last_first_to_first_last(last_first)
-            results.append(PlayerProbDTO(
-                player_name=display_name,
-                current_score=score,
-                thru=thru,
-                win_pct=live_win,
-                top5_pct=top5_pct,
-                top10_pct=top10_pct,
-                top20_pct=top20_pct,
-                current_pos=pos,
-                missed_cut=missed_cut,
-            ))
-
-        results.sort(key=lambda r: r.win_pct or 0, reverse=True)
-        return results
+    players.sort(key=lambda r: r.win_pct or 0, reverse=True)
+    logger.info(f"DataGolf: {len(players)} players, {sum(1 for c in course_pars.values() for _ in c)} course holes loaded")
+    return LiveModelData(players=players, course_pars=course_pars)
 
 
-def _scale_topn(pre_topn: float | None, pre_win: float | None, live_win: float | None) -> float | None:
-    """
-    Scale a pre-tournament top-N probability to approximate the live value.
-    If pre_win is available: live_topN = min(1.0, pre_topN * (live_win / pre_win))
-    If pre_win unavailable: return pre_topN as-is (no scaling possible).
-    """
-    if pre_topn is None:
-        return None
-    if live_win is None:
-        return pre_topn
-    if pre_win and pre_win > 0.001:
-        ratio = live_win / pre_win
-        return min(1.0, pre_topn * ratio)
-    return pre_topn
+def _build_rounds(rounds_raw: dict) -> list[HoleScores]:
+    """Convert player_scores[player_num] → list[HoleScores] sorted by round."""
+    out: list[HoleScores] = []
+    for key, val in rounds_raw.items():
+        if key == "info" or not isinstance(val, dict):
+            continue
+        try:
+            round_num = int(key)
+        except ValueError:
+            continue
+        scores: dict[int, int | None] = {}
+        for hole in range(1, 19):
+            raw = val.get(str(hole))
+            scores[hole] = int(raw) if isinstance(raw, (int, float)) and not (
+                isinstance(raw, float) and math.isnan(raw)
+            ) else None
+        morning_val = val.get("morning")
+        morning = (morning_val == "yes") if isinstance(morning_val, str) else None
+        out.append(HoleScores(
+            round_num=round_num,
+            course_code=val.get("course_code"),
+            morning=morning,
+            tee_time=val.get("t"),
+            scores=scores,
+        ))
+    out.sort(key=lambda r: r.round_num)
+    return out
 
 
-def _safe_float(val) -> float | None:
-    if val is None:
-        return None
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return None
+# ── Backward-compat shim ────────────────────────────────────────────────────────
+# Keep the old name working so any callers (and tests) don't break during the
+# transition. Will remove once routers are migrated.
+async def scrape_live_model() -> list[PlayerProbDTO]:
+    data = await fetch_live_model()
+    return data.players

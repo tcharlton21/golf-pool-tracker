@@ -125,13 +125,13 @@ export function CombinedView({ events }: CombinedViewProps) {
         </Button>
       </div>
 
-      <div className="flex gap-4 flex-1 min-h-0">
-        <div className="flex-1 min-w-0 space-y-3">
+      <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
+        <div className="flex-1 min-w-0 space-y-3 order-2 md:order-1">
           <MyPoolCard label="Marshalek" my={myMarshalek} />
           <MyPoolCard label="Piper" my={myPiper} />
         </div>
         {selectedEventId && (
-          <div className="md:w-[30%] md:shrink-0">
+          <div className="order-1 md:order-2 md:w-[46%] md:shrink-0 min-w-0">
             <div className="rounded-lg border border-border/40 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-border/40 bg-secondary/30">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
