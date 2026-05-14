@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RefreshCw, Clock, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LiveLeaderboard } from "./LiveLeaderboard";
@@ -24,6 +24,14 @@ export function CombinedView({ events }: CombinedViewProps) {
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Debounce filter input so the leaderboard doesn't re-render on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQuery(searchInput), 150);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const { user } = useAuth();
   const { leaderboard: marshalek, refresh: refreshMarshalek } = usePoolData(
@@ -151,14 +159,22 @@ export function CombinedView({ events }: CombinedViewProps) {
       {selectedEventId && (
         <div className="flex-1 min-h-0">
           <div className="rounded-lg border border-border/40 overflow-hidden h-full">
-            <div className="px-4 py-2.5 border-b border-border/40 bg-secondary/30">
+            <div className="px-4 py-2 border-b border-border/40 bg-secondary/30 flex items-center justify-between gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Tournament
               </h3>
+              <input
+                type="search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Filter players…"
+                className="w-32 sm:w-56 text-xs bg-background border border-border/40 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-primary/50"
+              />
             </div>
             <LiveLeaderboard
               eventId={selectedEventId}
               myPickNames={myPickNames}
+              searchQuery={searchQuery}
             />
           </div>
         </div>

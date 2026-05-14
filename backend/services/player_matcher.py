@@ -47,6 +47,19 @@ for canonical, aliases in KNOWN_ALIASES.items():
 
 
 FUZZY_THRESHOLD = 85
+# Same first name + similar-sounding short last names (e.g. Spieth/Smith) can
+# clear the full-name token-sort threshold even though they're different people.
+# Require the last token to also fuzzy-match independently.
+LAST_NAME_THRESHOLD = 85
+
+
+def _last_token(name: str) -> str:
+    parts = _clean_name(name).split()
+    return parts[-1].lower() if parts else ""
+
+
+def _last_name_compatible(a: str, b: str) -> bool:
+    return fuzz.ratio(_last_token(a), _last_token(b)) >= LAST_NAME_THRESHOLD
 
 
 def _strip_accents(text: str) -> str:
@@ -155,6 +168,13 @@ def match_datagolf_name(dg_name: str, db: Session) -> PlayerCache | None:
     ids, names = zip(*all_names)
     result = process.extractOne(canonical, names, scorer=fuzz.token_sort_ratio)
     if result and result[1] >= FUZZY_THRESHOLD:
+        matched_name = result[0]
+        if not _last_name_compatible(canonical, matched_name):
+            logger.warning(
+                f"Rejecting fuzzy match '{dg_name}' → '{matched_name}' "
+                f"(score {result[1]:.0f} but last names differ)"
+            )
+            return None
         matched_id = ids[result[2]]
         player = db.get(PlayerCache, matched_id)
         if player and player.datagolf_name != canonical:
@@ -198,6 +218,13 @@ def match_dk_name(dk_name: str, db: Session) -> PlayerCache | None:
     ids, names = zip(*all_names)
     result = process.extractOne(canonical, names, scorer=fuzz.token_sort_ratio)
     if result and result[1] >= FUZZY_THRESHOLD:
+        matched_name = result[0]
+        if not _last_name_compatible(canonical, matched_name):
+            logger.warning(
+                f"Rejecting fuzzy match '{dk_name}' → '{matched_name}' "
+                f"(score {result[1]:.0f} but last names differ)"
+            )
+            return None
         matched_id = ids[result[2]]
         player = db.get(PlayerCache, matched_id)
         if player and player.dk_name != dk_name:

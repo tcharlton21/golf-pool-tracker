@@ -22,9 +22,14 @@ import type { PlayerOdds } from "@/lib/schemas";
 interface LiveLeaderboardProps {
   eventId: number;
   myPickNames?: readonly string[];
+  searchQuery?: string;
 }
 
-export function LiveLeaderboard({ eventId, myPickNames = [] }: LiveLeaderboardProps) {
+export function LiveLeaderboard({
+  eventId,
+  myPickNames = [],
+  searchQuery = "",
+}: LiveLeaderboardProps) {
   const { liveOdds, isLoading, error } = useLiveOdds(eventId);
   const [expanded, setExpanded] = useState<string | null>(null);
   const { favoriteNames, toggle, canFavorite } = useFavorites(eventId);
@@ -53,7 +58,14 @@ export function LiveLeaderboard({ eventId, myPickNames = [] }: LiveLeaderboardPr
     return a.current_pos - b.current_pos;
   };
 
-  const allPlayers = (liveOdds?.players ?? []).slice().sort(sortByPos);
+  const q = searchQuery.trim().toLowerCase();
+  const matchesQuery = (p: PlayerOdds) =>
+    !q || p.normalized_name.toLowerCase().includes(q);
+
+  const allPlayers = (liveOdds?.players ?? [])
+    .slice()
+    .filter(matchesQuery)
+    .sort(sortByPos);
   const myPlayers = allPlayers.filter((p) => myPickSet.has(p.normalized_name));
 
   if (allPlayers.length === 0) {
