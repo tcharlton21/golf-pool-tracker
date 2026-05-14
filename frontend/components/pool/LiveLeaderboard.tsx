@@ -37,7 +37,6 @@ export function LiveLeaderboard({ eventId }: LiveLeaderboardProps) {
   }
 
   const players = (liveOdds?.players ?? [])
-    .filter((p) => p.current_pos != null || p.win_pct != null)
     .sort((a, b) => {
       if (a.current_pos == null && b.current_pos == null) return 0;
       if (a.current_pos == null) return 1;
