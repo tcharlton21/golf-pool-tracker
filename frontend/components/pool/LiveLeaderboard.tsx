@@ -118,16 +118,13 @@ export function LiveLeaderboard({ eventId, myPickNames = [] }: LiveLeaderboardPr
 }
 
 function PlayerRow({ player, isTied, isMine }: { player: PlayerOdds; isTied: boolean; isMine?: boolean }) {
-  const isTopFive = player.current_pos != null && player.current_pos <= 5;
-  const isTopTen = player.current_pos != null && player.current_pos <= 10;
-
   return (
     <tr className={`border-b border-border/20 last:border-0 transition-colors ${isMine ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-secondary/30"}`}>
       <td className="py-1.5 px-3 text-muted-foreground tabular-nums">
         {formatPos(player.current_pos)}
       </td>
       <td
-        className={`py-1.5 px-3 ${isMine ? "text-primary font-semibold" : isTopFive ? "text-primary font-medium" : isTopTen ? "text-foreground" : "text-foreground/80"}`}
+        className={`py-1.5 px-3 ${isMine ? "text-primary font-semibold" : "text-foreground/80"}`}
       >
         {player.normalized_name}
       </td>
