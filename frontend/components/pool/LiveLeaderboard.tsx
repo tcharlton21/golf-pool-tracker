@@ -47,8 +47,8 @@ export function LiveLeaderboard({ eventId, myPickNames = [] }: LiveLeaderboardPr
 
   const allPlayers = (liveOdds?.players ?? []).slice().sort(sortByPos);
   const myPlayers = allPlayers.filter((p) => myPickSet.has(p.normalized_name));
-  const restPlayers = allPlayers.filter((p) => !myPickSet.has(p.normalized_name));
-  const players = allPlayers; // for the empty-state check below
+  // Show my picks BOTH pinned at top AND inline in the field, both highlighted
+  const players = allPlayers;
 
   if (players.length === 0) {
     return (
@@ -103,11 +103,12 @@ export function LiveLeaderboard({ eventId, myPickNames = [] }: LiveLeaderboardPr
               </tr>
             </>
           )}
-          {restPlayers.map((player) => (
+          {players.map((player) => (
             <PlayerRow
               key={player.normalized_name}
               player={player}
               isTied={(posCounts.get(player.current_pos ?? -1) ?? 0) > 1}
+              isMine={myPickSet.has(player.normalized_name)}
             />
           ))}
         </tbody>
