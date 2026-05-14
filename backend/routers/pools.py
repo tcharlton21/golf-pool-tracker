@@ -211,9 +211,18 @@ def get_leaderboard(
             total = sum(position_amounts.get(pos + i, 0.0) for i in range(count))
             tie_position_amounts[pos] = total / count
 
-    # The MC payout position — positions 55-100 all pay the same missed-cut amount.
-    # Using 65 as a representative; position_amounts[65] = MC payout (e.g. $25,000).
-    _MC_POS = 65
+    # MC payout: prefer the explicit per-event field, fall back to position 65
+    # (legacy convention: the Masters fallback table happened to encode the MC
+    # payout at position 65 because 61–65 all share the minimum amount).
+    # We assign the MC amount to a synthetic position outside the real range so
+    # actual 65th-place finishers still get the real position-65 payout.
+    _MC_POS = 999
+    mc_amount = (
+        event.mc_payout_usd
+        if event.mc_payout_usd is not None
+        else position_amounts.get(65, 0.0)
+    )
+    position_amounts[_MC_POS] = mc_amount
 
     # Build position_probs for each player
     position_probs: dict[str, dict[int, float]] = {}
@@ -253,8 +262,6 @@ def get_leaderboard(
         edge = calculator.exclusive_edge_score(picks_list, win_probs, all_pick_lists)
 
         # Current earnings (non-probability-weighted, just live pos, tie-split)
-        mc_amount = position_amounts.get(_MC_POS, 0.0)
-
         def _pick_live_earn(golfer: str) -> float:
             o = odds_map.get(golfer)
             if not o:

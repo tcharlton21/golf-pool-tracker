@@ -34,6 +34,7 @@ class Event(Base):
     start_date = Column(String, nullable=False)      # ISO date string
     is_active = Column(Boolean, default=False)
     dk_event_slug = Column(String)                   # DraftKings URL slug for this event
+    mc_payout_usd = Column(Float)                    # flat payout for missed cut; falls back to position 65 when null
 
     purse_positions = relationship("PursePosition", back_populates="event", cascade="all, delete-orphan")
     entrants = relationship("Entrant", back_populates="event", cascade="all, delete-orphan")

@@ -88,12 +88,15 @@ def _apply_alias(name: str) -> str:
 def upsert_player(normalized_name: str, db: Session) -> PlayerCache:
     """
     Get or create a PlayerCache row for the given normalized name.
+    Applies the alias map first so picks like "Matthew Fitzpatrick" collapse
+    onto the canonical "Matt Fitzpatrick" row that DataGolf will populate.
     """
-    existing = db.query(PlayerCache).filter_by(normalized_name=normalized_name).first()
+    canonical = _apply_alias(_clean_name(normalized_name))
+    existing = db.query(PlayerCache).filter_by(normalized_name=canonical).first()
     if existing:
         return existing
     player = PlayerCache(
-        normalized_name=normalized_name,
+        normalized_name=canonical,
         updated_at=datetime.now(timezone.utc).isoformat(),
     )
     db.add(player)

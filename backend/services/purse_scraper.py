@@ -96,43 +96,68 @@ async def _try_pga_tour_purse(
             resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
         if resp.status_code != 200:
             return None
-        return _parse_pga_tour_purse_html(resp.text, purse_usd)
+        return _parse_pga_tour_purse_html(resp.text, purse_usd, slug)
     except httpx.HTTPError as exc:
         logger.warning(f"PGA Tour purse fetch failed: {exc}")
         return None
 
 
-def _parse_pga_tour_purse_html(html: str, purse_usd: int) -> list[PursePosition] | None:
+def _parse_pga_tour_purse_html(
+    html: str, purse_usd: int, expected_slug: str
+) -> list[PursePosition] | None:
     """
-    Parse the purse table from pgatour.com/tournaments/{year}/{slug}/purse.
-    Table rows look like: Position | Player | Money
-    We only need position → money rows (skip player column, we just want position totals).
+    Parse purse data from the embedded Next.js __NEXT_DATA__ JSON blob on
+    pgatour.com/tournaments/{year}/{slug}/purse. The page renders whatever
+    tournament PGA Tour considers "current" when the requested one isn't
+    populated yet, so we verify the tournament identity before trusting the
+    payouts.
     """
-    # Find dollar amount patterns: $1,620,000 or $360,000
-    # The table has one row per position with the amount
-    rows = re.findall(
-        r'<tr[^>]*>.*?(\d{1,3}(?:st|nd|rd|th|)).*?\$([\d,]+).*?</tr>',
+    m = re.search(
+        r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
         html,
-        re.DOTALL | re.IGNORECASE,
+        re.DOTALL,
     )
-    if not rows:
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(1))
+    except json.JSONDecodeError:
         return None
 
-    positions: list[PursePosition] = []
-    for pos_str, amount_str in rows:
-        pos_clean = re.sub(r'(st|nd|rd|th)', '', pos_str).strip()
-        if not pos_clean.isdigit():
-            continue
-        pos = int(pos_clean)
+    tournament = data.get("props", {}).get("pageProps", {}).get("tournament", {})
+    actual_name = (tournament.get("tournamentName") or "").lower().replace(" ", "-")
+    if expected_slug not in actual_name and actual_name not in expected_slug:
+        logger.info(
+            f"PGA Tour returned different tournament: expected '{expected_slug}', "
+            f"got '{tournament.get('tournamentName')}' — skipping"
+        )
+        return None
+
+    pairs = re.findall(
+        r'"position":"?(\d{1,3})"?[^{}]{0,200}?"purse":"\$([\d,]+)"',
+        m.group(1),
+    )
+    if not pairs:
+        return None
+
+    pos_amounts: dict[int, float] = {}
+    for pos_str, amount_str in pairs:
+        pos = int(pos_str)
         amount = float(amount_str.replace(",", ""))
-        pct = amount / purse_usd if purse_usd > 0 else 0.0
-        positions.append(PursePosition(position=pos, pct=pct, amount_usd=amount))
+        if pos not in pos_amounts or amount > pos_amounts[pos]:
+            pos_amounts[pos] = amount
 
-    if len(positions) < 10:
+    if len(pos_amounts) < 10:
         return None
 
-    positions.sort(key=lambda p: p.position)
-    return positions
+    return [
+        PursePosition(
+            position=pos,
+            pct=amount / purse_usd if purse_usd > 0 else 0.0,
+            amount_usd=amount,
+        )
+        for pos, amount in sorted(pos_amounts.items())
+    ]
 
 
 async def _try_espn_purse(
@@ -145,7 +170,7 @@ async def _try_espn_purse(
     espn_id_map = {
         ("masters", "2026"): "401580358",
         ("players", "2026"): "401580350",
-        ("pga", "2026"): "401580365",
+        ("pga", "2026"): "401811947",
         ("us_open", "2026"): "401580370",
         ("open", "2026"): "401580375",
     }
