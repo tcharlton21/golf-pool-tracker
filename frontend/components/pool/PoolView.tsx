@@ -64,7 +64,18 @@ export function PoolView({ poolType, events }: PoolViewProps) {
   const [hypotheticalMobileView, setHypotheticalMobileView] = useState<"order" | "leaderboard">("order");
 
   const { leaderboard, isLoading, error, refresh } = usePoolData(selectedEventId, poolType);
-  const { liveOdds } = useLiveOdds(selectedEventId);
+  const { liveOdds, refresh: refreshLiveOdds } = useLiveOdds(selectedEventId);
+
+  // Identify the current user's entrant so the side leaderboard can pin
+  // and highlight their picks. Defaults to Trent Charlton; override via
+  // NEXT_PUBLIC_MY_ENTRANT_NAME on Vercel for other users.
+  const meName = (
+    process.env.NEXT_PUBLIC_MY_ENTRANT_NAME ?? "Trent Charlton"
+  ).toLowerCase();
+  const myEntrant = leaderboard?.entrants.find(
+    (e) => e.name.toLowerCase() === meName,
+  );
+  const myPickNames = myEntrant?.picks.map((p) => p.golfer_name) ?? [];
   const { purse } = usePurse(selectedEventId);
 
   const purseMap: Record<number, number> = {};
@@ -122,6 +133,7 @@ export function PoolView({ poolType, events }: PoolViewProps) {
     try {
       await triggerRefresh(selectedEventId);
       refresh();
+      refreshLiveOdds();
     } finally {
       setIsRefreshing(false);
     }
@@ -290,7 +302,7 @@ export function PoolView({ poolType, events }: PoolViewProps) {
           onOrderChange={handleOrderChange}
         />
       ) : (
-        selectedEventId && <LiveLeaderboard eventId={selectedEventId} />
+        selectedEventId && <LiveLeaderboard eventId={selectedEventId} myPickNames={myPickNames} />
       )}
     </div>
   );

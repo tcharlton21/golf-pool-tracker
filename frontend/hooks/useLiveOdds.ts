@@ -8,8 +8,9 @@ export function useLiveOdds(eventId: number | null): {
   liveOdds: LiveOddsResponse | undefined;
   isLoading: boolean;
   error: Error | undefined;
+  refresh: () => void;
 } {
-  const { data, error, isLoading } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     eventId ? ["live-odds", eventId] : null,
     () => fetchLiveOdds(eventId!),
     { refreshInterval: 30_000 },
@@ -19,5 +20,6 @@ export function useLiveOdds(eventId: number | null): {
     liveOdds: data,
     isLoading,
     error: error as Error | undefined,
+    refresh: () => mutate(),
   };
 }

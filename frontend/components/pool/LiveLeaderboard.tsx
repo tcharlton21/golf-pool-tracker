@@ -13,10 +13,12 @@ import type { PlayerOdds } from "@/lib/schemas";
 
 interface LiveLeaderboardProps {
   eventId: number;
+  myPickNames?: readonly string[];
 }
 
-export function LiveLeaderboard({ eventId }: LiveLeaderboardProps) {
+export function LiveLeaderboard({ eventId, myPickNames = [] }: LiveLeaderboardProps) {
   const { liveOdds, isLoading, error } = useLiveOdds(eventId);
+  const myPickSet = new Set(myPickNames);
 
   if (isLoading) {
     return (
@@ -36,13 +38,17 @@ export function LiveLeaderboard({ eventId }: LiveLeaderboardProps) {
     );
   }
 
-  const players = (liveOdds?.players ?? [])
-    .sort((a, b) => {
-      if (a.current_pos == null && b.current_pos == null) return 0;
-      if (a.current_pos == null) return 1;
-      if (b.current_pos == null) return -1;
-      return a.current_pos - b.current_pos;
-    });
+  const sortByPos = (a: PlayerOdds, b: PlayerOdds) => {
+    if (a.current_pos == null && b.current_pos == null) return 0;
+    if (a.current_pos == null) return 1;
+    if (b.current_pos == null) return -1;
+    return a.current_pos - b.current_pos;
+  };
+
+  const allPlayers = (liveOdds?.players ?? []).slice().sort(sortByPos);
+  const myPlayers = allPlayers.filter((p) => myPickSet.has(p.normalized_name));
+  const restPlayers = allPlayers.filter((p) => !myPickSet.has(p.normalized_name));
+  const players = allPlayers; // for the empty-state check below
 
   if (players.length === 0) {
     return (
@@ -75,7 +81,29 @@ export function LiveLeaderboard({ eventId }: LiveLeaderboardProps) {
           </tr>
         </thead>
         <tbody>
-          {players.map((player) => (
+          {myPlayers.length > 0 && (
+            <>
+              <tr className="bg-primary/5">
+                <td colSpan={6} className="py-1 px-3 text-[10px] font-semibold uppercase tracking-wide text-primary/80">
+                  My Picks
+                </td>
+              </tr>
+              {myPlayers.map((player) => (
+                <PlayerRow
+                  key={`mine-${player.normalized_name}`}
+                  player={player}
+                  isTied={(posCounts.get(player.current_pos ?? -1) ?? 0) > 1}
+                  isMine
+                />
+              ))}
+              <tr className="bg-secondary/30">
+                <td colSpan={6} className="py-1 px-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Field
+                </td>
+              </tr>
+            </>
+          )}
+          {restPlayers.map((player) => (
             <PlayerRow
               key={player.normalized_name}
               player={player}
@@ -88,17 +116,17 @@ export function LiveLeaderboard({ eventId }: LiveLeaderboardProps) {
   );
 }
 
-function PlayerRow({ player, isTied }: { player: PlayerOdds; isTied: boolean }) {
+function PlayerRow({ player, isTied, isMine }: { player: PlayerOdds; isTied: boolean; isMine?: boolean }) {
   const isTopFive = player.current_pos != null && player.current_pos <= 5;
   const isTopTen = player.current_pos != null && player.current_pos <= 10;
 
   return (
-    <tr className="border-b border-border/20 last:border-0 hover:bg-secondary/30 transition-colors">
+    <tr className={`border-b border-border/20 last:border-0 transition-colors ${isMine ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-secondary/30"}`}>
       <td className="py-1.5 px-3 text-muted-foreground tabular-nums">
         {formatPos(player.current_pos)}
       </td>
       <td
-        className={`py-1.5 px-3 ${isTopFive ? "text-primary font-medium" : isTopTen ? "text-foreground" : "text-foreground/80"}`}
+        className={`py-1.5 px-3 ${isMine ? "text-primary font-semibold" : isTopFive ? "text-primary font-medium" : isTopTen ? "text-foreground" : "text-foreground/80"}`}
       >
         {player.normalized_name}
       </td>
