@@ -5,6 +5,7 @@ import { PoolView } from "@/components/pool/PoolView";
 import { CombinedView } from "@/components/pool/CombinedView";
 import { useEvents } from "@/hooks/useEvents";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UserMenu } from "@/components/auth/UserMenu";
 
 export default function Home() {
   const { events, isLoading } = useEvents();
@@ -20,7 +21,10 @@ export default function Home() {
             <span className="text-muted-foreground/30 text-xs">|</span>
             <span className="text-xs text-muted-foreground">2026 Majors</span>
           </div>
-          <span className="text-xs text-yellow-500/70 font-medium">Estimated Payouts, Not Official!</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-yellow-500/70 font-medium hidden sm:inline">Estimated Payouts, Not Official!</span>
+            <UserMenu />
+          </div>
         </div>
       </header>
 

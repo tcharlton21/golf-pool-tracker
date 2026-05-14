@@ -123,6 +123,34 @@ export const PursePositionSchema = z.object({
   amount_usd: z.number(),
 });
 
+// ----- Auth schemas -----
+
+export const UserSchema = z.object({
+  id: z.number(),
+  email: z.string(),
+  created_at: z.string(),
+  is_new: z.boolean().default(false),
+});
+
+export const AuthResponseSchema = z.object({
+  token: z.string(),
+  user: UserSchema,
+});
+
+export const FavoriteSchema = z.object({
+  event_id: z.number(),
+  golfer_normalized_name: z.string(),
+  created_at: z.string(),
+});
+
+export const PoolLinkSchema = z.object({
+  event_id: z.number(),
+  pool_type: z.string(),
+  entrant_id: z.number(),
+  entrant_name: z.string(),
+  created_at: z.string(),
+});
+
 // Inferred types
 export type PickDetail = z.infer<typeof PickDetailSchema>;
 export type EntrantLeaderboardRow = z.infer<typeof EntrantLeaderboardRowSchema>;
@@ -135,3 +163,7 @@ export type EventListItem = z.infer<typeof EventListItemSchema>;
 export type RefreshSummary = z.infer<typeof RefreshSummarySchema>;
 export type UploadPreviewResponse = z.infer<typeof UploadPreviewResponseSchema>;
 export type PursePosition = z.infer<typeof PursePositionSchema>;
+export type User = z.infer<typeof UserSchema>;
+export type AuthResponse = z.infer<typeof AuthResponseSchema>;
+export type Favorite = z.infer<typeof FavoriteSchema>;
+export type PoolLink = z.infer<typeof PoolLinkSchema>;

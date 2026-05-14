@@ -1,25 +1,33 @@
 import { z } from "zod";
 import {
+  AuthResponseSchema,
   EventListItemSchema,
+  FavoriteSchema,
   LeaderboardResponseSchema,
   LiveOddsResponseSchema,
   PlayerHolesResponseSchema,
+  PoolLinkSchema,
   PursePositionSchema,
   RefreshSummarySchema,
   UploadPreviewResponseSchema,
+  UserSchema,
+  type AuthResponse,
   type EventListItem,
+  type Favorite,
   type LeaderboardResponse,
   type LiveOddsResponse,
   type PlayerHolesResponse,
+  type PoolLink,
   type PursePosition,
   type RefreshSummary,
   type UploadPreviewResponse,
+  type User,
 } from "./schemas";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
@@ -27,6 +35,13 @@ class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
+}
+
+function withAuth(token: string | null, init: RequestInit = {}): RequestInit {
+  if (!token) return init;
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  return { ...init, headers };
 }
 
 async function apiFetch<T>(
@@ -110,6 +125,116 @@ export async function uploadPicks(
 
 export function fetchPurse(eventId: number): Promise<PursePosition[]> {
   return apiFetch(`/events/${eventId}/purse`, z.array(PursePositionSchema));
+}
+
+// ----- Auth -----
+
+export function registerOrLogin(
+  email: string,
+  password: string,
+  signupCode?: string,
+): Promise<AuthResponse> {
+  return apiFetch("/auth/register-or-login", AuthResponseSchema, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email,
+      password,
+      signup_code: signupCode || undefined,
+    }),
+  });
+}
+
+export function fetchMe(token: string): Promise<User> {
+  return apiFetch("/auth/me", UserSchema, withAuth(token));
+}
+
+// ----- Favorites -----
+
+export function fetchFavorites(
+  token: string,
+  eventId: number,
+): Promise<Favorite[]> {
+  return apiFetch(
+    `/users/me/favorites?event_id=${eventId}`,
+    z.array(FavoriteSchema),
+    withAuth(token),
+  );
+}
+
+export function addFavorite(
+  token: string,
+  eventId: number,
+  golferNormalizedName: string,
+): Promise<Favorite> {
+  return apiFetch("/users/me/favorites", FavoriteSchema, withAuth(token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      event_id: eventId,
+      golfer_normalized_name: golferNormalizedName,
+    }),
+  }));
+}
+
+export async function removeFavorite(
+  token: string,
+  eventId: number,
+  golferNormalizedName: string,
+): Promise<void> {
+  const res = await fetch(
+    `${BASE_URL}/users/me/favorites/${eventId}/${encodeURIComponent(golferNormalizedName)}`,
+    withAuth(token, { method: "DELETE" }),
+  );
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, text);
+  }
+}
+
+// ----- Pool links -----
+
+export function fetchPoolLinks(
+  token: string,
+  eventId: number,
+): Promise<PoolLink[]> {
+  return apiFetch(
+    `/users/me/pool-links?event_id=${eventId}`,
+    z.array(PoolLinkSchema),
+    withAuth(token),
+  );
+}
+
+export function setPoolLink(
+  token: string,
+  eventId: number,
+  poolType: "marshalek" | "piper",
+  entrantId: number,
+): Promise<PoolLink> {
+  return apiFetch("/users/me/pool-links", PoolLinkSchema, withAuth(token, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      event_id: eventId,
+      pool_type: poolType,
+      entrant_id: entrantId,
+    }),
+  }));
+}
+
+export async function removePoolLink(
+  token: string,
+  eventId: number,
+  poolType: "marshalek" | "piper",
+): Promise<void> {
+  const res = await fetch(
+    `${BASE_URL}/users/me/pool-links/${eventId}/${poolType}`,
+    withAuth(token, { method: "DELETE" }),
+  );
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, text);
+  }
 }
 
 export async function confirmUpload(
