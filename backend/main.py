@@ -53,6 +53,12 @@ async def on_startup():
     log = logging.getLogger(__name__)
     log.info("Database initialized")
 
+    # Render free tier wipes the SQLite file on each deploy, so re-seed Trent's
+    # account + pool links every boot. Idempotent: existing user gets a password
+    # reset, existing links get refreshed.
+    from seed_trent_account import run_with_default_password
+    run_with_default_password()
+
     # Auto-resume refresh loops for any events that were active before restart
     from models.database import Event
     db = SessionLocal()
