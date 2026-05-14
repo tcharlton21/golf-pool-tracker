@@ -2,6 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PoolView } from "@/components/pool/PoolView";
+import { CombinedView } from "@/components/pool/CombinedView";
 import { useEvents } from "@/hooks/useEvents";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -31,10 +32,13 @@ export default function Home() {
           </div>
         ) : (
           <Tabs
-            defaultValue="marshalek"
+            defaultValue="combined"
             className="flex flex-col flex-1 min-h-0"
           >
             <TabsList className="mb-4 self-start bg-secondary/50 h-8">
+              <TabsTrigger value="combined" className="text-xs px-4 h-7">
+                My Pools
+              </TabsTrigger>
               <TabsTrigger value="marshalek" className="text-xs px-4 h-7">
                 Marshalek
               </TabsTrigger>
@@ -42,6 +46,10 @@ export default function Home() {
                 Piper
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="combined" className="flex-1 min-h-0 mt-0">
+              <CombinedView events={events} />
+            </TabsContent>
 
             <TabsContent value="marshalek" className="flex-1 min-h-0 mt-0">
               <PoolView poolType="marshalek" events={events} />
