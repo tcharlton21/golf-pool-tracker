@@ -110,6 +110,27 @@ def _all_normalized_names(db: Session) -> list[tuple[int, str]]:
     return [(r.id, _clean_name(r.normalized_name)) for r in rows]
 
 
+def get_or_create_from_datagolf(dg_name: str, db: Session) -> PlayerCache:
+    """
+    Match an existing PlayerCache row for a DataGolf name, creating one if
+    nothing matches. Use this from the live-odds refresh path so every player
+    in the field gets cached (and shows up on the live leaderboard) — not
+    only those someone in the pool happened to pick.
+    """
+    matched = match_datagolf_name(dg_name, db)
+    if matched:
+        return matched
+    canonical = _apply_alias(_clean_name(dg_name))
+    player = PlayerCache(
+        normalized_name=canonical,
+        datagolf_name=canonical,
+        updated_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(player)
+    db.flush()
+    return player
+
+
 def match_datagolf_name(dg_name: str, db: Session) -> PlayerCache | None:
     """
     Match a DataGolf player name to an existing PlayerCache row.

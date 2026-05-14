@@ -167,11 +167,7 @@ async def _do_refresh(
             if not dg_player.player_name:
                 continue
 
-            matched = player_matcher.match_datagolf_name(dg_player.player_name, db)
-            if not matched:
-                unmatched_names.append(f"DG:{dg_player.player_name}")
-                continue
-
+            matched = player_matcher.get_or_create_from_datagolf(dg_player.player_name, db)
             players_matched += 1
             dk_odds = dk_odds_by_name.get(matched.normalized_name)
 
