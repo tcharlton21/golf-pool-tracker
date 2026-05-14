@@ -127,6 +127,43 @@ class CourseHole(Base):
     par = Column(Integer, nullable=False)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    password_hash = Column(String, nullable=False)
+    created_at = Column(String, nullable=False)
+
+    favorites = relationship("UserFavorite", back_populates="user", cascade="all, delete-orphan")
+    pool_links = relationship("UserPoolLink", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserFavorite(Base):
+    __tablename__ = "user_favorites"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    golfer_normalized_name = Column(String, nullable=False)
+    created_at = Column(String, nullable=False)
+
+    user = relationship("User", back_populates="favorites")
+
+
+class UserPoolLink(Base):
+    __tablename__ = "user_pool_links"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    pool_type = Column(String, nullable=False)       # "marshalek" | "piper"
+    entrant_id = Column(Integer, ForeignKey("entrants.id"), nullable=False)
+    created_at = Column(String, nullable=False)
+
+    user = relationship("User", back_populates="pool_links")
+
+
 def get_db():
     db = SessionLocal()
     try:

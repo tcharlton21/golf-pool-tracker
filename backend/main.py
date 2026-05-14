@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from models.database import SessionLocal, init_db
-from routers import events, live, pools
+from routers import auth, events, live, pools
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(events.router, prefix="/api/v1")
 app.include_router(pools.router, prefix="/api/v1")
 app.include_router(live.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1")
 
 
 @app.on_event("startup")

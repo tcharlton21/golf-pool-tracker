@@ -8,3 +8,5 @@ python-multipart==0.0.12
 python-dotenv==1.0.1
 pydantic==2.9.2
 slowapi==0.1.9
+bcrypt==4.2.0
+PyJWT==2.9.0
