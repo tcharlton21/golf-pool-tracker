@@ -4,8 +4,11 @@ import { useState } from "react";
 import { RefreshCw, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LiveLeaderboard } from "./LiveLeaderboard";
+import { PoolLinker } from "./PoolLinker";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useLiveOdds } from "@/hooks/useLiveOdds";
+import { usePoolLinks } from "@/hooks/usePoolLinks";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { triggerRefresh } from "@/lib/api";
 import {
   formatMoney,
@@ -14,7 +17,7 @@ import {
   formatScore,
   scoreColorClass,
 } from "@/lib/format";
-import type { EventListItem, EntrantLeaderboardRow } from "@/lib/schemas";
+import type { EventListItem, EntrantLeaderboardRow, LeaderboardResponse } from "@/lib/schemas";
 
 interface CombinedViewProps {
   events: EventListItem[];
@@ -33,6 +36,7 @@ export function CombinedView({ events }: CombinedViewProps) {
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const { user } = useAuth();
   const { leaderboard: marshalek, refresh: refreshMarshalek } = usePoolData(
     selectedEventId,
     "marshalek",
@@ -42,30 +46,47 @@ export function CombinedView({ events }: CombinedViewProps) {
     "piper",
   );
   const { refresh: refreshLiveOdds } = useLiveOdds(selectedEventId);
+  const { linkByPool, link, unlink, canLink } = usePoolLinks(selectedEventId);
 
-  const meName = (
+  const fallbackName = (
     process.env.NEXT_PUBLIC_MY_ENTRANT_NAME ?? "Trent Charlton"
   ).toLowerCase();
 
-  function findMe(lb: typeof marshalek): MyStanding | null {
+  function findMyStanding(
+    lb: LeaderboardResponse | undefined,
+    poolType: "marshalek" | "piper",
+  ): MyStanding | null {
     if (!lb || lb.entrants.length === 0) return null;
     const sorted = [...lb.entrants].sort(
       (a, b) => b.current_earnings - a.current_earnings,
     );
-    const idx = sorted.findIndex((e) => e.name.toLowerCase() === meName);
+    // Logged-in users: use the linked entrant; if not linked, no standing yet.
+    // Logged-out viewers: fall back to the env-var name.
+    const linkedId = linkByPool.get(poolType)?.entrant_id;
+    let idx = -1;
+    if (user) {
+      if (linkedId == null) return null;
+      idx = sorted.findIndex((e) => e.entrant_id === linkedId);
+    } else {
+      idx = sorted.findIndex((e) => e.name.toLowerCase() === fallbackName);
+    }
     if (idx < 0) return null;
     return { entrant: sorted[idx], rank: idx + 1, total: sorted.length };
   }
 
-  const myMarshalek = findMe(marshalek);
-  const myPiper = findMe(piper);
+  const myMarshalek = findMyStanding(marshalek, "marshalek");
+  const myPiper = findMyStanding(piper, "piper");
 
-  const myPickNames = Array.from(
-    new Set([
-      ...(myMarshalek?.entrant.picks.map((p) => p.golfer_name) ?? []),
-      ...(myPiper?.entrant.picks.map((p) => p.golfer_name) ?? []),
-    ]),
-  );
+  // Logged-out viewers see a fallback set of picks (env-var entrant);
+  // logged-in viewers' My Picks come from the favorites hook inside the leaderboard.
+  const myPickNames = user
+    ? []
+    : Array.from(
+        new Set([
+          ...(myMarshalek?.entrant.picks.map((p) => p.golfer_name) ?? []),
+          ...(myPiper?.entrant.picks.map((p) => p.golfer_name) ?? []),
+        ]),
+      );
 
   const lastRefreshed =
     marshalek?.last_refreshed ?? piper?.last_refreshed ?? null;
@@ -127,8 +148,26 @@ export function CombinedView({ events }: CombinedViewProps) {
 
       <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
         <div className="hidden md:flex md:flex-col flex-1 min-w-0 space-y-3 order-2 md:order-1">
-          <MyPoolCard label="Marshalek" my={myMarshalek} />
-          <MyPoolCard label="Piper" my={myPiper} />
+          <MyPoolCard
+            label="Marshalek"
+            my={myMarshalek}
+            poolType="marshalek"
+            leaderboard={marshalek}
+            linkedEntrantName={linkByPool.get("marshalek")?.entrant_name ?? null}
+            canLink={canLink && !!user}
+            onLink={(entrantId) => link("marshalek", entrantId)}
+            onUnlink={() => unlink("marshalek")}
+          />
+          <MyPoolCard
+            label="Piper"
+            my={myPiper}
+            poolType="piper"
+            leaderboard={piper}
+            linkedEntrantName={linkByPool.get("piper")?.entrant_name ?? null}
+            canLink={canLink && !!user}
+            onLink={(entrantId) => link("piper", entrantId)}
+            onUnlink={() => unlink("piper")}
+          />
         </div>
         {selectedEventId && (
           <div className="order-1 md:order-2 md:w-[46%] md:shrink-0 min-w-0">
@@ -153,17 +192,48 @@ export function CombinedView({ events }: CombinedViewProps) {
 function MyPoolCard({
   label,
   my,
+  poolType,
+  leaderboard,
+  linkedEntrantName,
+  canLink,
+  onLink,
+  onUnlink,
 }: {
   label: string;
   my: MyStanding | null;
+  poolType: "marshalek" | "piper";
+  leaderboard: LeaderboardResponse | undefined;
+  linkedEntrantName: string | null;
+  canLink: boolean;
+  onLink: (entrantId: number) => Promise<void>;
+  onUnlink: () => Promise<void>;
 }) {
   if (!my) {
     return (
       <div className="rounded-lg border border-border/40 p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-          {label}
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {label}
+          </div>
+          {canLink && linkedEntrantName && (
+            <span className="text-[10px] text-muted-foreground/70">
+              Linked: {linkedEntrantName}
+            </span>
+          )}
         </div>
-        <div className="text-sm text-muted-foreground">Not entered.</div>
+        {canLink ? (
+          <PoolLinker
+            poolType={poolType}
+            leaderboard={leaderboard}
+            linkedEntrantName={linkedEntrantName}
+            onLink={onLink}
+            onUnlink={onUnlink}
+          />
+        ) : (
+          <div className="text-sm text-muted-foreground">
+            Log in to link a pool entry.
+          </div>
+        )}
       </div>
     );
   }
@@ -171,13 +241,31 @@ function MyPoolCard({
   return (
     <div className="rounded-lg border border-border/40 overflow-hidden">
       <div className="px-4 py-2.5 border-b border-border/40 bg-secondary/30 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </h3>
-        <div className="text-xs text-muted-foreground tabular-nums">
-          Rank{" "}
-          <span className="text-foreground font-medium">{rank}</span>
-          <span className="text-muted-foreground/60">/{total}</span>
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {label}
+          </h3>
+          {canLink && linkedEntrantName && (
+            <span className="text-[10px] text-muted-foreground/70">
+              {linkedEntrantName}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {canLink && (
+            <button
+              type="button"
+              onClick={() => onUnlink()}
+              className="text-[10px] text-muted-foreground/70 hover:text-foreground underline-offset-2 hover:underline"
+            >
+              unlink
+            </button>
+          )}
+          <div className="text-xs text-muted-foreground tabular-nums">
+            Rank{" "}
+            <span className="text-foreground font-medium">{rank}</span>
+            <span className="text-muted-foreground/60">/{total}</span>
+          </div>
         </div>
       </div>
       <div className="px-4 py-3 flex items-center gap-6 text-sm">
