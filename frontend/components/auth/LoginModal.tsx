@@ -48,7 +48,12 @@ export function LoginModal({ open, onOpenChange }: Props) {
         setShowSignupCode(true);
         setError("New account — enter the signup code to create it.");
       } else if (err instanceof ApiError && err.status === 401) {
-        setError("Wrong password for this email.");
+        // 401 only fires when the email matches an existing user — so this is
+        // unambiguously a wrong-password case. If the user came in via the
+        // signup flow, hide that field and pivot them to the login flow.
+        setShowSignupCode(false);
+        setSignupCode("");
+        setError("This email already has an account — that password didn't match. Try again, or use a different email.");
       } else if (err instanceof ApiError) {
         setError(err.message);
       } else {
@@ -124,6 +129,18 @@ export function LoginModal({ open, onOpenChange }: Props) {
           <Button type="submit" disabled={submitting} className="mt-1">
             {submitting ? "..." : showSignupCode ? "Create account" : "Continue"}
           </Button>
+          {!showSignupCode && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowSignupCode(true);
+                setError(null);
+              }}
+              className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline self-center"
+            >
+              First time? Sign up
+            </button>
+          )}
         </form>
       </DialogContent>
     </Dialog>

@@ -32,7 +32,9 @@ ENTRANT_NAME = "Trent Charlton"
 def upsert_user(db, password: str) -> User:
     user = db.query(User).filter(User.email == EMAIL).first()
     if user:
-        print(f"  user exists: id={user.id}")
+        user.password_hash = hash_password(password)
+        db.commit()
+        print(f"  user exists: id={user.id} (password reset)")
         return user
     user = User(
         email=EMAIL,

@@ -220,6 +220,19 @@ async def fetch_live_model() -> LiveModelData:
             isinstance(end_hole_raw, float) and math.isnan(end_hole_raw)
         ) else None
 
+        # If DataGolf cleared `thru` (happens once a round wraps or before tee-off),
+        # derive a useful display value from the player's per-round scores:
+        #   18/18 holes filled → "F"; 1–17 → str(count); 0/18 with tee_time → tee_time.
+        if thru is None and rounds:
+            latest = rounds[-1]
+            filled = sum(1 for v in latest.scores.values() if v is not None)
+            if filled >= 18:
+                thru = "F"
+            elif filled > 0:
+                thru = str(filled)
+            elif latest.tee_time:
+                thru = latest.tee_time
+
         players.append(PlayerProbDTO(
             player_name=_last_first_to_first_last(name),
             player_num=int(player_num) if player_num is not None else None,
