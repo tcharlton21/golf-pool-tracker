@@ -106,6 +106,7 @@ class LiveOddsCache(Base):
     current_score = Column(Integer)                  # strokes to par cumulative
     today_score = Column(Integer)                    # strokes to par today
     thru = Column(String)                            # "F", "14", "-"
+    end_hole = Column(Integer)                       # 9 = back-nine start, 18 = front-nine start
     missed_cut = Column(Boolean, default=False)
     flag = Column(String)                            # "USA", "GER", country code
     dg_player_num = Column(Integer)                  # DataGolf player_num (joins to PlayerHoleRound)

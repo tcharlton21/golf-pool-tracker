@@ -196,6 +196,9 @@ function PlayerRow({
       </td>
       <td className="py-1.5 px-0.5 text-center text-muted-foreground tabular-nums">
         {player.thru ?? "—"}
+        {player.started_back && player.thru && player.thru !== "F" && (
+          <span className="text-amber-400/80">*</span>
+        )}
       </td>
       <td className="py-1.5 px-0.5 text-center tabular-nums">
         <TodayCell score={player.today_score} hasStarted={player.thru != null} />

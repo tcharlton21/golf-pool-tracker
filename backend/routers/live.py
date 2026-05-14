@@ -58,6 +58,7 @@ def get_live_odds(event_id: int, db: Session = Depends(get_db)):
             current_score=odds.current_score,
             today_score=odds.today_score,
             thru=odds.thru,
+            started_back=(odds.end_hole == 9) if odds.end_hole is not None else None,
             win_pct=odds.win_pct,
             top5_pct=odds.top5_pct,
             top10_pct=odds.top10_pct,
@@ -270,6 +271,7 @@ async def _do_refresh(
                 existing.current_score = dg_player.current_score
                 existing.today_score = dg_player.today_score
                 existing.thru = dg_player.thru
+                existing.end_hole = dg_player.end_hole
                 existing.missed_cut = dg_player.missed_cut
                 existing.flag = dg_player.flag
                 existing.dg_player_num = dg_player.player_num
@@ -289,6 +291,7 @@ async def _do_refresh(
                     current_score=dg_player.current_score,
                     today_score=dg_player.today_score,
                     thru=dg_player.thru,
+                    end_hole=dg_player.end_hole,
                     missed_cut=dg_player.missed_cut,
                     flag=dg_player.flag,
                     dg_player_num=dg_player.player_num,

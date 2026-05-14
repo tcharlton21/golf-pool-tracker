@@ -61,6 +61,7 @@ class PlayerProbDTO:
     top20_pct: float | None
     make_cut_pct: float | None
     current_pos: int | None
+    end_hole: int | None = None          # 9 = started on back nine, 18 = started on front
     missed_cut: bool = False             # True for MC/WD/DQ/CUT
     rounds: list[HoleScores] = field(default_factory=list)
 
@@ -214,6 +215,11 @@ async def fetch_live_model() -> LiveModelData:
         player_num = entry.get("player_num")
         rounds = _build_rounds(player_scores_raw.get(str(player_num), {}))
 
+        end_hole_raw = entry.get("end_hole")
+        end_hole = int(end_hole_raw) if isinstance(end_hole_raw, (int, float)) and not (
+            isinstance(end_hole_raw, float) and math.isnan(end_hole_raw)
+        ) else None
+
         players.append(PlayerProbDTO(
             player_name=_last_first_to_first_last(name),
             player_num=int(player_num) if player_num is not None else None,
@@ -227,6 +233,7 @@ async def fetch_live_model() -> LiveModelData:
             top20_pct=_parse_pct(entry.get("top20")),
             make_cut_pct=_parse_pct(entry.get("cut")),
             current_pos=pos,
+            end_hole=end_hole,
             missed_cut=missed_cut,
             rounds=rounds,
         ))

@@ -20,6 +20,7 @@ def main() -> None:
         ("flag", "VARCHAR"),
         ("dg_player_num", "INTEGER"),
         ("rounds_json", "TEXT"),
+        ("end_hole", "INTEGER"),
     ]
 
     with engine.begin() as conn:

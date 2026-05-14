@@ -44,6 +44,7 @@ export const PlayerOddsSchema = z.object({
   current_score: z.number().nullable(),
   today_score: z.number().nullable(),
   thru: z.string().nullable(),
+  started_back: z.boolean().nullable(),
   win_pct: z.number().nullable(),
   top5_pct: z.number().nullable(),
   top10_pct: z.number().nullable(),

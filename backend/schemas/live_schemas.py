@@ -10,6 +10,7 @@ class PlayerOddsSchema(BaseModel):
     current_score: int | None
     today_score: int | None
     thru: str | None
+    started_back: bool | None  # True when player teed off at hole 10 for current round
     win_pct: float | None
     top5_pct: float | None
     top10_pct: float | None
