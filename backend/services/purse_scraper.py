@@ -125,8 +125,10 @@ def _parse_pga_tour_purse_html(
         return None
 
     tournament = data.get("props", {}).get("pageProps", {}).get("tournament", {})
-    actual_name = (tournament.get("tournamentName") or "").lower().replace(" ", "-")
-    if expected_slug not in actual_name and actual_name not in expected_slug:
+    raw_name = (tournament.get("tournamentName") or "").lower()
+    actual_compact = re.sub(r"[^a-z0-9]+", "", raw_name)
+    expected_compact = re.sub(r"[^a-z0-9]+", "", expected_slug)
+    if expected_compact not in actual_compact and actual_compact not in expected_compact:
         logger.info(
             f"PGA Tour returned different tournament: expected '{expected_slug}', "
             f"got '{tournament.get('tournamentName')}' — skipping"

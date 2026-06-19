@@ -109,7 +109,7 @@ def parse_piper(file_bytes: bytes) -> ParseResult:
     """
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
 
-    matrix_sheet = _find_sheet(wb, ["Player Selection Sheet", "Selections", "Matrix"])
+    matrix_sheet = _find_sheet(wb, ["Player Selection Sheet", "Player Selections", "Entry Sheet", "Selections", "Matrix"])
     form_sheet = _find_sheet(wb, ["Sheet1", "Form Responses", "Responses"])
 
     if matrix_sheet:
@@ -144,15 +144,24 @@ def _parse_piper_matrix(ws: Worksheet) -> ParseResult:
     # (entrant names are in row 1, player names start row 2+)
     header_row = all_rows[0]
 
-    # Find the first column with an entrant name (skip empty leading columns)
+    # Find the first column with an entrant name (skip leading meta columns).
+    # Row 2 holds each entrant's pick count (typically 10 in Piper) — use it as
+    # the authoritative signal: a real entrant column has a numeric count in row 2.
+    count_row = all_rows[1] if len(all_rows) > 1 else ()
     entrant_col_start = None
     for col_idx, cell in enumerate(header_row):
-        if cell and str(cell).strip() and str(cell).strip() not in ("", "Player", "Name"):
-            # Check that this looks like a person name (not a label)
-            val = str(cell).strip()
-            if len(val) > 2 and not val.startswith("Group"):
-                entrant_col_start = col_idx
-                break
+        if not cell or not str(cell).strip():
+            continue
+        val = str(cell).strip()
+        if val in ("Player", "Name") or val.lower().startswith(("total", "group")):
+            continue
+        if len(val) <= 2:
+            continue
+        count_cell = count_row[col_idx] if col_idx < len(count_row) else None
+        if not isinstance(count_cell, (int, float)) or count_cell <= 0:
+            continue
+        entrant_col_start = col_idx
+        break
 
     if entrant_col_start is None:
         return ParseResult(entrants=[], warnings=["Could not find entrant columns in matrix sheet"])
