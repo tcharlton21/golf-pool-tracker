@@ -25,8 +25,8 @@
       "pga_tour_id": "R2024023"
     },
     "us-open-2026": {
-      "name": "2026 US Open",
-      "purse_usd": 21500000,
+      "name": "2026 U.S. Open",
+      "purse_usd": 22500000,
       "tour_event": "us_open",
       "start_date": "2026-06-18",
       "dk_event_slug": "us-open",
