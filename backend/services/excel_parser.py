@@ -2,7 +2,7 @@
 Parse Excel pick sheets for Marshalek and Piper pool formats.
 
 Marshalek format ("Picks" sheet):
-  Row 1: headers (skipped)
+  No header row — row 1 is the first entrant.
   Col A: entrant name
   Cols B-F: picks in "Last, First" format (col F often empty)
 
@@ -65,7 +65,7 @@ def parse_marshalek(file_bytes: bytes) -> ParseResult:
     warnings: list[str] = []
     entrants: list[EntrantPreview] = []
 
-    for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+    for row_idx, row in enumerate(ws.iter_rows(min_row=1, values_only=True), start=1):
         entrant_name = row[0]
         if not entrant_name or not str(entrant_name).strip():
             continue
