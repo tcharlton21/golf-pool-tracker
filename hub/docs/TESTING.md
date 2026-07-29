@@ -1,0 +1,228 @@
+# TESTING.md — Testing Strategy
+
+The Hub is built by a fleet of implementer agents with no human code review. This
+document exists to make that safe: every slice's definition of done is a command
+that either passes or fails, never a judgment call. This file is the binding
+reference for the fixture repo, golden-snapshot convention, mock LLM transport,
+`pnpm verify:slice-N` scripts, and the two test frameworks in use. Read this before
+writing any test, fixture, or verify script.
+
+## Frameworks
+
+- **Vitest** — all server-side unit, integration, and golden-snapshot tests:
+  `packages/shared`, `packages/server`, `packages/analyzers`.
+- **Playwright, Chromium only** — all UI and end-to-end tests. No Firefox/WebKit
+  projects in CI; the Hub is a local single-browser tool and cross-browser coverage
+  is not a goal.
+
+Directory convention, used by every slice without exception:
+
+```
+packages/<pkg>/test/slice-N/*.test.ts   # Vitest, scoped to that slice's DoD
+e2e/slice-N/*.spec.ts                   # Playwright, root-level, scoped to that slice's DoD
+```
+
+A test file lives under the slice number that introduced the behavior it checks, not
+the slice that happens to touch the same code later. Slice 7 tests staleness UI even
+though it imports components slice 5 built; it still lives under `e2e/slice-7`.
+
+## The fixture repo: `fixtures/demo-app`
+
+Committed as part of slice 0. A small, real, buildable Hono + React app with a
+**known** import graph, API routes, and a Vitest test suite — small enough to reason
+about by hand, large enough to exercise every node/edge kind the MVP produces.
+
+```
+fixtures/demo-app/
+  package.json
+  tsconfig.json
+  vite.config.ts
+  src/server/index.ts              # Hono app, mounts routes
+  src/server/routes/widgets.ts     # GET/POST /api/widgets -> ep:GET:/api/widgets etc.
+  src/server/db.ts                 # imported by routes/widgets.ts (depends-on edge)
+  src/web/main.tsx
+  src/web/App.tsx
+  src/web/components/WidgetList.tsx
+  test/widgets.test.ts             # vitest; tests -> mod:src/server/routes/widgets.ts
+```
+
+This fixed shape is what `fixtures/golden/skeleton.json` describes. Nobody edits
+`fixtures/demo-app` casually — it is source data for goldens across slices 2, 3, 4,
+5, 6, 7, 8. Any change to it is a coordinator-approved event (same rule as
+`packages/shared`, per `CLAUDE.md`) because it invalidates every golden file at once.
+
+Tests never mutate `fixtures/demo-app` in place. Scenarios that need a dirty tree
+copy it to a temp directory first (`fs.cp` into an OS temp dir, or a fresh `git
+init` there for tests that need commit/branch state) and mutate the copy.
+
+## Mutation scenarios: `fixtures/mutations`
+
+Scripted, reusable mutations applied to a temp copy of `fixtures/demo-app`, used to
+drive incremental-extraction and end-to-end tests without hand-writing file edits in
+every test file.
+
+```
+fixtures/mutations/
+  add-file.ts        # adds src/server/routes/reports.ts + wires an import from index.ts
+  delete-file.ts      # deletes src/server/db.ts -> dangling inbound edge from widgets.ts
+  change-import.ts    # widgets.ts import target changed -> outbound edge set changes
+  rename-file.ts       # git-mv widgets.ts -> catalog.ts -> ID continuity check
+  config-change.ts     # tsconfig.json path alias edit -> forces full-extraction fallback
+```
+
+Each module exports:
+
+```ts
+export interface Mutation {
+  id: string;                       // "add-file", matches filename
+  description: string;
+  apply(repoDir: string): Promise<void>;
+}
+```
+
+Slice 2 tests assert `extractIncremental(dirtySet) === extractFull()` after each
+mutation (structural equivalence, not the debounce/watcher plumbing). Slice 8's money
+test drives the same mutation modules through the live Stop-hook path instead of
+calling the extractor directly — same fixtures, different entry point, which is the
+point: the mutation library is entry-point-agnostic.
+
+## Golden snapshots: `fixtures/golden`
+
+The primary correctness mechanism for extraction, graph store, and semantic output.
+Golden files are checked byte-for-byte, which only works because every `.arch/`
+writer goes through the shared deterministic, sorted-key JSON serializer in
+`packages/shared` (invariant 3 in `CLAUDE.md`) — re-running extraction on an
+unchanged tree must reproduce identical bytes, not just structurally-equal JSON.
+
+```
+fixtures/golden/
+  skeleton.json                 # expected full extraction of fixtures/demo-app
+  semantics/components.json     # expected clustering output (mock LLM)
+  semantics/<componentId>.json  # expected per-component summary (mock LLM)
+  views/<nodeId>.json           # expected getView() responses at each drill level
+  settings.merged.json          # expected fixtures/demo-app/.claude/settings.json after `hub track`
+  diagrams/<componentId>.mmd    # expected Mermaid export
+```
+
+Rules:
+
+1. Golden files are updated **only** as an explicit, reviewed step — never
+   auto-regenerated by a failing test. `scripts/update-golden.ts --slice=N` writes
+   fresh output for a named slice's goldens and nothing else; running it is a
+   deliberate act a human or coordinator asks for, never something `pnpm verify`
+   does on its own.
+2. A byte diff against golden is a test failure, full stop. There is no
+   "close enough" comparator — deterministic serialization means there is no reason
+   for one.
+3. Golden files for the semantic layer (`semantics/*`, `views/*` that include
+   semantic fields, `diagrams/*.mmd`) are generated using the **mock LLM transport**
+   with fixed canned responses, so they are as reproducible as the skeleton goldens.
+
+## Mock LLM transport
+
+Every job the Semantic Job Queue runs goes through the `LlmTransport` interface
+defined in `packages/shared/src/contracts/llm-transport.ts`:
+
+```ts
+export interface JobRequest {
+  jobId: string;
+  type: "cluster" | "summarize-component" | "diagram" | "describe-tests";
+  targetId: string;       // componentId, or "system" for cluster jobs
+  input: unknown;          // job-type-specific, schema-validated per type
+  promptVersion: number;
+}
+export interface JobResult {
+  jobId: string;
+  status: "success" | "error";
+  output?: unknown;        // validated against a per-type zod schema before persist
+  error?: { message: string; retryable: boolean };
+}
+export interface LlmTransport {
+  runJob(req: JobRequest): Promise<JobResult>;
+}
+```
+
+Three implementations share this one contract, all in `packages/server/src/semantic/transport/`:
+
+- `agent-sdk-transport.ts` — real transport, `@anthropic-ai/claude-agent-sdk`, used in production.
+- `subprocess-transport.ts` — real fallback transport, `claude -p --output-format json`, same contract.
+- `mock-transport.ts` — canned-JSON transport. **Mandatory for every CI path that
+  exercises the Semantic Job Queue.** No test may spend real tokens or require
+  network access; the only exception anywhere in the suite is the single manual-gate
+  live smoke test in slice 6, which is not part of `pnpm test` or any
+  `pnpm verify:slice-N`.
+
+`MockTransport` resolves a `JobRequest` to a `JobResult` by looking up
+`fixtures/mock-llm/responses/<type>__<targetId>.json`; tests that need a specific
+scripted sequence (e.g. the money test) pass an explicit `Map<jobId, JobResult>`
+override at construction. A request with no matching fixture and no override throws
+loudly in tests — a missing canned response is a test-authoring bug, not something to
+paper over with a default.
+
+```
+fixtures/mock-llm/
+  responses/
+    cluster__system.json
+    summarize-component__cmp-widgets.json
+    diagram__cmp-widgets.json
+  scenarios/
+    money-test/                 # slice-8-specific scripted response sequence
+```
+
+## `pnpm verify:slice-N` convention
+
+Each slice registers exactly one npm script in the root `package.json`:
+`verify:slice-N`, for `N` in `0..8`. It is the **sole** mechanism the coordinator
+uses to confirm a slice is done — the coordinator never reads implementation code.
+A slice is not complete until its script exits 0.
+
+Rules every slice's script follows:
+
+1. Runs only that slice's tests (`packages/*/test/slice-N` and/or `e2e/slice-N`),
+   never a broader sweep — a passing `verify:slice-4` must not depend on
+   `verify:slice-6` having been run first.
+2. Is self-contained: it builds whatever it needs (`pnpm -r build` or a narrower
+   `pnpm --filter` build) before running tests, so it can be run standalone against
+   a clean checkout.
+3. Never touches the network beyond `localhost` — mock LLM transport, no external
+   Anthropic calls, no telemetry.
+4. Prints pass/fail per assertion group in a way that is legible pasted into a
+   completion report (Vitest's default reporter and Playwright's `line` reporter
+   both satisfy this — no custom silent reporters).
+
+`pnpm verify` runs `pnpm build` once, then every `verify:slice-N` script in order
+(0 through 8). A green `pnpm verify` is the machine-checkable definition of "the Hub,
+as currently built, matches its spec" and is what slice 8's packaging DoD ultimately
+gates on.
+
+## The money test (slice 8)
+
+The canonical end-to-end proof that the sync loop works, and the centerpiece of
+slice 8. Lives at `e2e/slice-8/money-test.spec.ts`, runs headless in CI under the
+mock LLM transport, and is scripted start to finish — no manual steps, no real
+`claude` process, no real tokens:
+
+1. Start the Hub server against a **fresh** copy of `fixtures/demo-app` in a temp
+   git repo.
+2. Drive `hub track <repo>` (the onboarding flow, via its HTTP API rather than
+   clicking through the UI) to install hooks and run the initial full scan.
+3. Run a **fake-agent session**: a script that (a) applies one or more
+   `fixtures/mutations` scenarios to the tracked repo's files, then (b) POSTs
+   realistic `Stop`-hook JSON payloads to `/api/hooks/claude-code` — shaped exactly
+   like the real hook body (`event`, `cwd`, `session_id`, `transcript_path`),
+   because that endpoint's contract is what's under test, not the `curl` wrapper
+   around it.
+4. Assert the UI (open in Playwright against the running server) reflects the
+   updated skeleton and shows stale badges on affected nodes within **10 seconds**
+   of the Stop payload landing.
+5. Let the mock-LLM-backed job queue drain; assert it does — no parked jobs, no
+   stuck `extracting` state.
+6. Assert stale badges clear node-by-node as their jobs complete, matching the
+   scripted job ordering.
+7. Assert `.arch/` in the tracked repo diffs byte-identically against
+   `fixtures/golden/` (skeleton, semantics, diagrams) for the mutation scenario run.
+
+Any regression anywhere in the sync loop — hook ingest, watcher fallback, debounce,
+incremental extraction, graph store, semantic scheduling, WS delta plumbing, or the
+UI's rendering of either — is expected to show up as a money-test failure. It is
+intentionally the most expensive test in the suite and the last one added.
