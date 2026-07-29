@@ -37,7 +37,7 @@ looking at reflects the last five minutes of agent work.
 ```mermaid
 flowchart LR
   A[Agent edits files] --> B[Stop hook fires]
-  B --> C[Hub: dirty set resolved]
+  B --> C["Hub: dirty set resolved"]
   C --> D[Incremental extraction]
   D --> E[Skeleton updated ~1s]
   E --> F[Semantic jobs enqueued]
@@ -102,4 +102,4 @@ architecture or the sync loop: a multi-project dashboard, GitHub/GitLab overlay 
 (PR/CI state pinned to graph nodes), an architecture-diff view between commits, a
 test-suite explorer, the editor/terminal escape hatch refinements, an L3 symbol level
 with `calls` edges, and voice dictation into the terminal panel. See
-`docs/ROADMAP.md` for the full, ordered list and rationale for each.
+`ROADMAP.md` for the full, ordered list and rationale for each.

@@ -21,9 +21,13 @@ skeleton out — always.
   per-file facts: exports, route registrations (Hono/Express/Fastify/Next
   patterns), test markers (vitest/jest/playwright).
 - `packages/analyzers/src/typescript/route-discovery.ts` — turns route-registration
-  facts into `api-endpoint` nodes (component-level `exposes` edges are assigned
-  later, during slice 6 clustering — this slice only records the raw endpoint
-  nodes).
+  facts into `api-endpoint` nodes plus static `exposes` edges stored at the
+  observed level (defining module → endpoint, per `docs/DATA_MODEL.md`);
+  component-level `exposes` is never stored — it appears via view-time edge
+  lifting once slice 6 clustering exists.
+- `packages/analyzers/src/typescript/dep-discovery.ts` — `external-dep` nodes
+  (`dep:<package-name>`, `meta.version`) from `package.json` direct dependencies;
+  a static skeleton fact per `docs/DATA_MODEL.md`, not a clustering product.
 - `packages/analyzers/src/typescript/test-discovery.ts` — `test-file` nodes and
   `tests` edges via the import graph plus naming heuristics.
 - `packages/analyzers/src/typescript/index.ts` — `TsAnalyzer` implementing the

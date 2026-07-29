@@ -28,9 +28,11 @@ failure), `docs/TESTING.md`.
   `summarize-component` job for the focused node's component; disabled while a job
   for that target is already queued or running.
 - `packages/server/src/http/routes/jobs.ts` —
-  `POST /api/projects/:projectId/jobs` (manual re-summarize/re-cluster enqueue),
-  `GET /api/projects/:projectId/jobs` (status; used by both the re-summarize
-  button's disabled state and the status bar's job count).
+  `GET /api/projects/:projectId/jobs` (job-queue status; used by both the
+  re-summarize button's disabled state and the status bar's job count). Manual
+  enqueue uses the existing
+  `POST /api/projects/:projectId/nodes/:nodeId/resummarize` endpoint defined in
+  `docs/ARCHITECTURE.md` §7 (returns `jobId`).
 - `packages/server/src/semantic/mermaid-export.ts` — exports
   `diagrams/<componentId>.mmd` / `diagrams/system.mmd` to a user-chosen path (a
   thin wrapper over the `.mmd` files slice 6 already writes).
@@ -50,7 +52,7 @@ enqueue/status (slice 6); the `GraphCanvas`/`NodeInspector` components and
 ## Interfaces exposed
 
 `SyncStatusBar` (with stale-filter view), `ProvenancePopover`,
-`ReSummarizeButton`, and `GET`/`POST /api/projects/:projectId/jobs` — mounted
+`ReSummarizeButton`, and `GET /api/projects/:projectId/jobs` — mounted
 as-is into slice 8's full app shell.
 
 ## Definition of Done
